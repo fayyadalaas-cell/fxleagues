@@ -1,15 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase } from "@/lib/supabaseClient";
 
-export default function SignInPage() {
+export default function SignInClient({ nextUrl }: { nextUrl: string }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const next = searchParams.get("next") || "/";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,7 +31,6 @@ export default function SignInPage() {
     }
 
     if (data.session && data.user) {
-      // ✅ تأكد أن المستخدم عنده profile
       const { data: existingProfile } = await supabase
         .from("profiles")
         .select("id")
@@ -48,7 +44,7 @@ export default function SignInPage() {
         });
       }
 
-      router.push(next);
+      router.push(nextUrl);
     }
   }
 
@@ -60,9 +56,7 @@ export default function SignInPage() {
         </Link>
 
         <h1 className="text-3xl font-bold mt-4">Sign in</h1>
-        <p className="text-zinc-400 mt-2">
-          Sign in using your account.
-        </p>
+        <p className="text-zinc-400 mt-2">Sign in using your account.</p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div>
@@ -87,9 +81,7 @@ export default function SignInPage() {
             />
           </div>
 
-          {errorMsg && (
-            <div className="text-red-500 text-sm">{errorMsg}</div>
-          )}
+          {errorMsg && <div className="text-red-500 text-sm">{errorMsg}</div>}
 
           <button
             disabled={loading}
@@ -102,7 +94,7 @@ export default function SignInPage() {
         <div className="text-sm text-zinc-400 mt-4">
           Don&apos;t have an account?{" "}
           <Link
-            href={`/signup?next=${encodeURIComponent(next)}`}
+            href={`/signup?next=${encodeURIComponent(nextUrl)}`}
             className="text-yellow-400 hover:underline"
           >
             Create one
