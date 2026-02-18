@@ -7,7 +7,10 @@ export default function Page({
 }: {
   searchParams?: { next?: string };
 }) {
-  const nextUrl = typeof searchParams?.next === "string" ? searchParams.next : "/";
+  const nextUrl =
+    typeof searchParams?.next === "string" && searchParams.next.length > 0
+      ? searchParams.next
+      : "/";
 
   return <SignInClient nextUrl={nextUrl} />;
 }
