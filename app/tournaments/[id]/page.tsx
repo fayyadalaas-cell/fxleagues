@@ -72,21 +72,30 @@ export default function TournamentDetailsPage() {
   const params = useParams<{ id: string }>();
 
   const rawId = params?.id ?? "";
-  const slug = normalizeSlug(rawId);
+  const slug = rawId; // ✅ خليها زي ما هي بدون normalize
 
   const [tab, setTab] = useState<Tab>("overview");
-  const [isLoggedIn] = useState(false); // placeholder — wire to real auth later
 
   const [loading, setLoading] = useState(true);
   const [t, setT] = useState<DbTournament | null>(null);
   const [error, setError] = useState<string>("");
 
-  // ✅ participants count
+  // ✅ participants count + join state
   const [participantsCount, setParticipantsCount] = useState(0);
+  const [alreadyJoined, setAlreadyJoined] = useState(false);
 
   // join modal
   const [openJoin, setOpenJoin] = useState(false);
   const [agree, setAgree] = useState(false);
+
+  // ✅ credentials modal + form fields
+  const [openCreds, setOpenCreds] = useState(false);
+  const [platform, setPlatform] = useState("");
+  const [login, setLogin] = useState("");
+  const [investorPassword, setInvestorPassword] = useState("");
+  const [server, setServer] = useState("");
+  const [credentialsSubmitted, setCredentialsSubmitted] = useState(false);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -99,8 +108,10 @@ export default function TournamentDetailsPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "id,title,description,start_date,end_date,prize_pool,created_at,slug,status,type,sponsor_name,sponsor_logo_key,entry"
+          "id,title,description,start_date,end_date,prize_pool,created_at,slug,status,type,sponsor_name,sponsor_logo_key,entry,participants_count"
         )
+
+
         .eq("slug", slug)
         .limit(1)
         .maybeSingle();
@@ -122,22 +133,43 @@ export default function TournamentDetailsPage() {
         return;
       }
 
-      setT(data as DbTournament);
+setT(data as DbTournament);
 
-      // ✅ Fetch participants count
-      const { count, error: countErr } = await supabase
-        .from("tournament_participants")
-        .select("id", { count: "exact", head: true })
-        .eq("tournament_id", (data as DbTournament).id);
+// ✅ session
+const { data: { session } } = await supabase.auth.getSession();
 
-      if (!cancelled) {
-        if (countErr) {
-          // Don’t fail the page if count fails
-          setParticipantsCount(0);
-        } else {
-          setParticipantsCount(count ?? 0);
-        }
-      }
+if (session) {
+  // ✅ already joined
+  const { data: reg } = await supabase
+    .from("tournament_registrations")
+    .select("id")
+    .eq("tournament_id", data.id)
+    .eq("user_id", session.user.id)
+    .maybeSingle();
+
+  setAlreadyJoined(!!reg);
+
+  // ✅ submitted credentials (persist after refresh)
+  const { data: creds } = await supabase
+    .from("tournament_credentials")
+    .select("id")
+    .eq("tournament_id", data.id)
+    .eq("user_id", session.user.id)
+    .maybeSingle();
+
+  setCredentialsSubmitted(!!creds);
+} else {
+  setAlreadyJoined(false);
+  setCredentialsSubmitted(false);
+}
+
+// ✅ participants count (one clean way)
+const { count, error: countErr } = await supabase
+  .from("tournament_registrations")
+  .select("*", { count: "exact", head: true })
+  .eq("tournament_id", data.id);
+
+setParticipantsCount(!countErr ? (count ?? 0) : 0);
 
       if (!cancelled) setLoading(false);
     }
@@ -183,20 +215,83 @@ export default function TournamentDetailsPage() {
     );
   };
 
-  function handleOpenJoin() {
-    if (!isLoggedIn) {
-      router.push("/signin");
-      return;
-    }
-    setAgree(false);
-    setOpenJoin(true);
+  async function handleOpenJoin() {
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (!session) {
+    router.push("/signin");
+    return;
   }
 
-  function handleJoinNow() {
-    if (!agree) return;
-    alert(`Joined tournament: ${t?.title ?? slug}`);
-    setOpenJoin(false);
+  setAgree(false);
+  setOpenJoin(true);
+}
+
+
+  async function handleJoinNow() {
+  if (!agree || !t) return;
+
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (!session) {
+    router.push("/signin");
+    return;
   }
+
+   const { error } = await supabase
+  .rpc("join_tournament", {
+    p_tournament_id: t.id,
+  });
+
+
+
+
+  if (error) {
+  if ((error as any).code === "23505") {
+    alert("You already joined this tournament.");
+    setOpenJoin(false);
+    return;
+  }
+
+  alert("Error joining tournament: " + error.message);
+  return;
+}
+
+
+  alert("Successfully registered!");
+  setAlreadyJoined(true);
+  setOpenJoin(false);
+  setParticipantsCount((c) => c + 1);
+
+}
+
+async function handleSubmitCredentials() {
+  if (!t) return;
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return;
+
+  const { error } = await supabase
+    .from("tournament_credentials")
+    .insert({
+      tournament_id: t.id,
+      user_id: session.user.id,
+      platform,
+      login,
+      investor_password: investorPassword,
+      server,
+    });
+
+  if (error) {
+    alert("Error saving credentials: " + error.message);
+    return;
+  }
+
+  alert("Credentials submitted successfully!");
+setCredentialsSubmitted(true);
+setOpenCreds(false);
+
+}
 
   // UI states
   if (loading) {
@@ -296,19 +391,47 @@ export default function TournamentDetailsPage() {
             </div>
           </div>
 
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={() => alert("Rules popup later")}
-              className="border border-zinc-700 px-4 py-2 rounded-lg hover:bg-zinc-900"
-            >
-              Rules
-            </button>
+        <div className="flex gap-2 mt-2">
+  <button
+    onClick={() => alert("Rules popup later")}
+    className="border border-zinc-700 px-4 py-2 rounded-lg hover:bg-zinc-900"
+  >
+    Rules
+  </button>
 
-            <button onClick={handleOpenJoin} className="bg-yellow-500 text-black px-5 py-2 rounded-lg font-semibold">
-              Join Tournament
-            </button>
-          </div>
-        </div>
+  <button
+    disabled={alreadyJoined || status === "CLOSED"}
+    onClick={handleOpenJoin}
+    className={
+      status === "CLOSED" || alreadyJoined
+        ? "bg-zinc-700 text-zinc-300 px-5 py-2 rounded-lg font-semibold cursor-not-allowed"
+        : "bg-yellow-500 text-black px-5 py-2 rounded-lg font-semibold"
+    }
+  >
+    {status === "CLOSED"
+      ? "Closed"
+      : alreadyJoined
+      ? "Joined"
+      : "Join Tournament"}
+  </button>
+
+ {alreadyJoined && status !== "CLOSED" && (
+  <button
+    disabled={credentialsSubmitted}
+    onClick={() => setOpenCreds(true)}
+    className={
+      credentialsSubmitted
+        ? "border border-zinc-700 px-4 py-2 rounded-lg bg-zinc-800 text-zinc-400 cursor-not-allowed"
+        : "border border-zinc-700 px-4 py-2 rounded-lg hover:bg-zinc-900"
+    }
+  >
+    {credentialsSubmitted ? "Submitted" : "Submit Trading Details"}
+  </button>
+)}
+
+</div>
+</div>
+
 
         {/* Tabs */}
         <div className="mt-10 flex gap-2">
@@ -491,6 +614,98 @@ export default function TournamentDetailsPage() {
             </div>
           </div>
         )}
+        {openCreds && (
+  <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4">
+    <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6 relative">
+      <button
+        onClick={() => setOpenCreds(false)}
+        className="absolute right-4 top-4 text-zinc-400 hover:text-white"
+        aria-label="Close"
+      >
+        ✕
+      </button>
+
+      <h3 className="text-xl font-bold">Submit Demo Account Details</h3>
+      <p className="mt-2 text-sm text-zinc-400">
+        Open your demo account first, then submit your <span className="text-white">view-only</span> credentials.
+      </p>
+
+      <div className="mt-5 space-y-3">
+        <div>
+          <label className="text-xs text-zinc-400">Platform (MT4/MT5)</label>
+          <input
+  value={platform}
+  onChange={(e) => setPlatform(e.target.value)}
+  className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
+  placeholder="MT5"
+/>
+
+        </div>
+
+        <div>
+  <label className="text-xs text-zinc-400">Login</label>
+  <input
+    value={login}
+    onChange={(e) => setLogin(e.target.value)}
+    className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
+    placeholder="e.g. 12345678"
+  />
+</div>
+
+
+        <div>
+  <label className="text-xs text-zinc-400">Investor Password (view-only)</label>
+  <input
+    value={investorPassword}
+    onChange={(e) => setInvestorPassword(e.target.value)}
+    className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
+    placeholder="View-only password"
+  />
+</div>
+
+
+        <div>
+  <label className="text-xs text-zinc-400">Server</label>
+  <input
+    value={server}
+    onChange={(e) => setServer(e.target.value)}
+    className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
+    placeholder="e.g. Exness-MT5Real"
+  />
+</div>
+
+      </div>
+
+      <div className="mt-6 flex gap-3">
+        <button
+          onClick={() => setOpenCreds(false)}
+          className="flex-1 border border-zinc-700 px-4 py-2 rounded-lg hover:bg-zinc-800"
+        >
+          Cancel
+        </button>
+
+   <button
+  disabled={!platform || !login || !investorPassword || !server}
+  onClick={handleSubmitCredentials}
+  className={
+    !platform || !login || !investorPassword || !server
+      ? "flex-1 bg-yellow-500/40 text-black/60 px-4 py-2 rounded-lg font-semibold cursor-not-allowed"
+      : "flex-1 bg-yellow-500 text-black px-4 py-2 rounded-lg font-semibold"
+  }
+>
+
+  Submit
+</button>
+
+      </div>
+
+      <div className="mt-3 text-xs text-zinc-500">
+        Note: We only accept <span className="text-white">view-only</span> credentials (Investor password).
+      </div>
+    </div>
+  </div>
+)}
+
       </div>
     </main>
   );
