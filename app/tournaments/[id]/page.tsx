@@ -133,43 +133,55 @@ export default function TournamentDetailsPage() {
         return;
       }
 
-setT(data as DbTournament);
-
-// ✅ session
-const { data: { session } } = await supabase.auth.getSession();
+      setT(data as DbTournament);
+      const { data: { session } } = await supabase.auth.getSession();
 
 if (session) {
-  // ✅ already joined
   const { data: reg } = await supabase
     .from("tournament_registrations")
     .select("id")
-    .eq("tournament_id", data.id)
+    .eq("tournament_id", (data as any).id)
     .eq("user_id", session.user.id)
     .maybeSingle();
 
   setAlreadyJoined(!!reg);
-
-  // ✅ submitted credentials (persist after refresh)
-  const { data: creds } = await supabase
-    .from("tournament_credentials")
-    .select("id")
-    .eq("tournament_id", data.id)
-    .eq("user_id", session.user.id)
-    .maybeSingle();
-
-  setCredentialsSubmitted(!!creds);
 } else {
   setAlreadyJoined(false);
-  setCredentialsSubmitted(false);
 }
 
-// ✅ participants count (one clean way)
-const { count, error: countErr } = await supabase
+const countResponse = await supabase
+  .from("tournament_registrations")
+  .select("*", { count: "exact", head: true })
+  .eq("tournament_id", (data as any).id);
+
+setParticipantsCount(countResponse.count ?? 0);
+
+
+// ✅ Get real participants count from tournament_registrations
+const { count, error: countError } = await supabase
   .from("tournament_registrations")
   .select("*", { count: "exact", head: true })
   .eq("tournament_id", data.id);
 
-setParticipantsCount(!countErr ? (count ?? 0) : 0);
+if (!countError) {
+  setParticipantsCount(count ?? 0);
+  // check if already joined
+const { data: regs, error: countError } = await supabase
+  .from("tournament_registrations")
+  .select("id")
+  .eq("tournament_id", data.id);
+
+if (!countError && regs) {
+  setParticipantsCount(regs.length);
+} else {
+  setParticipantsCount(0);
+}
+
+
+} else {
+  setParticipantsCount(0);
+}
+
 
       if (!cancelled) setLoading(false);
     }

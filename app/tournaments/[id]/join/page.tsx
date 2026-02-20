@@ -98,32 +98,25 @@ export default function JoinTournamentPage() {
         return;
       }
 
-      // ✅ 4) Insert participation using UUID
-      const { data, error } = await supabase
-        .from("tournament_participants")
-        .insert({
-          user_id: user.id,
-          tournament_id: tournamentUuid,
-        })
-        .select()
-        .single();
+      // ✅ 4) Join via RPC (single source of truth)
+      const { error } = await supabase.rpc("join_tournament", {
+        p_tournament_id: tournamentUuid,
+      });
 
       setJoining(false);
 
       if (error) {
-        if (error.code === "23505") {
+        if ((error as any).code === "23505") {
           setMessage("You are already registered in this tournament.");
         } else {
-          setMessage(`Join failed: ${error.message} (code: ${error.code ?? "n/a"})`);
+          setMessage(`Join failed: ${error.message} (code: ${(error as any).code ?? "n/a"})`);
         }
         return;
       }
 
-      if (data) {
-        setMessage("Successfully joined the tournament ✅");
-        // ✅ بدل ما نروح للداش، نرجع للتفاصيل عشان يشوف الشروط + التحميل
-        setTimeout(() => router.push(`/tournaments/${tournamentSlug}`), 800);
-      }
+      setMessage("Successfully joined the tournament ✅");
+      // ✅ نرجع للتفاصيل على baseSlug (عشان ما يصير mismatch مع suffix)
+      setTimeout(() => router.push(`/tournaments/${baseSlug || tournamentSlug}`), 800);
     } catch (e: any) {
       setJoining(false);
       setMessage(`Join failed: ${e?.message ?? "Unknown error"}`);
@@ -138,7 +131,7 @@ export default function JoinTournamentPage() {
     <main className="min-h-screen bg-black text-white flex items-center justify-center p-6">
       <div className="w-full max-w-lg bg-zinc-900 rounded-xl p-8 border border-zinc-800">
         <Link
-          href={`/tournaments/${tournamentSlug}`}
+          href={`/tournaments/${baseSlug || tournamentSlug}`}
           className="text-yellow-400 text-sm hover:underline"
         >
           ← Back to Details
@@ -159,7 +152,7 @@ export default function JoinTournamentPage() {
               </Link>
 
               <Link
-                href={`/tournaments/${tournamentSlug}`}
+                href={`/tournaments/${baseSlug || tournamentSlug}`}
                 className="bg-zinc-700 px-4 py-2 rounded-lg"
               >
                 Back
@@ -181,8 +174,8 @@ export default function JoinTournamentPage() {
         )}
 
         <div className="mt-6 text-xs text-zinc-500">
-          Registration will be stored in the <strong>tournament_participants</strong> table
-          (user_id + tournament_id).
+          Registration will be stored in the <strong>tournament_registrations</strong> table via the{" "}
+          <strong>join_tournament</strong> RPC.
           <div className="mt-2">
             <span className="text-zinc-600">Debug:</span>{" "}
             <span className="text-zinc-400">
