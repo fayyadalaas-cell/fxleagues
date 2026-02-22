@@ -1,16 +1,26 @@
+import { redirect } from "next/navigation";
+import { createClient } from "../../lib/supabase/server";
 import SignInClient from "./SignInClient";
 
 export const dynamic = "force-dynamic";
 
-export default function Page({
+export default async function Page({
   searchParams,
 }: {
-  searchParams?: { next?: string };
+  searchParams?: Promise<{ next?: string }>;
 }) {
-  const nextUrl =
-    typeof searchParams?.next === "string" && searchParams.next.length > 0
-      ? searchParams.next
-      : "/";
+  const sp = (await searchParams) ?? {};
+  const nextUrl = typeof sp.next === "string" && sp.next.length > 0 ? sp.next : "/";
+
+  // ✅ إذا المستخدم مسجل دخول بالفعل، حوله مباشرة
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    redirect(nextUrl);
+  }
 
   return <SignInClient nextUrl={nextUrl} />;
 }

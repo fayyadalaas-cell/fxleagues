@@ -31,15 +31,10 @@ export default function ScheduleActions({ tournament }: Props) {
 
     setLoading(true);
 
-    const { error } = await supabase.from("tournament_participants").insert({
-      user_id: user.id,
-      tournament_id: tournament.id,
-      tournament_title: tournament.title,
-      tournament_type: tournament.type,
-      tournament_prize: tournament.prize,
-      tournament_date_label: tournament.dateLabel,
-      tournament_time: tournament.time,
-    });
+    const { error } = await supabase.from("tournament_registrations").insert({
+  user_id: user.id,
+  tournament_id: tournament.id,
+});
 
     setLoading(false);
 

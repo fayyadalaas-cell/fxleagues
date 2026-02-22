@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { fetchTournaments, type TournamentDB } from "@/lib/tournaments";
+import { supabase } from "@/lib/supabaseClient"; // ✅ مهم: نفس الملف اللي عندك
 
 type Row = {
   id: string;
@@ -47,16 +48,10 @@ function computeStatus(t: TournamentDB) {
   const start = new Date(t.start_date);
   const end = t.end_date ? new Date(t.end_date) : null;
 
-  // 1) إذا انتهى وقت المسابقة (end_date موجود) => COMPLETED
   if (end && now > end) return "COMPLETED";
-
-  // 2) إذا بدأ وقتها ولسه ما انتهت => LIVE
   if (start <= now && (!end || now <= end)) return "LIVE";
-
-  // 3) غير هيك => UPCOMING
   return "UPCOMING";
 }
-
 
 function toRow(t: TournamentDB): Row {
   const start = new Date(t.start_date);
@@ -67,7 +62,7 @@ function toRow(t: TournamentDB): Row {
     slug: t.slug ?? t.id,
     title: t.title,
     type: t.type ?? "Daily",
-status: computeStatus(t),
+    status: computeStatus(t),
     sponsorName: t.sponsor_name ?? "FXLeagues",
     startDate: start,
     endDate: end,
@@ -77,12 +72,12 @@ status: computeStatus(t),
   };
 }
 
-export default function Next7DaysFromDb({
-  title = "Next 7 Days",
-  limit = 7,
-}: Props) {
+export default function Next7DaysFromDb({ title = "Next 7 Days", limit = 7 }: Props) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // ✅ نخزن البطولات اللي المستخدم مسجل فيها
+  const [joinedIds, setJoinedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let alive = true;
@@ -90,11 +85,47 @@ export default function Next7DaysFromDb({
     (async () => {
       try {
         setLoading(true);
+
+        // 1) tournaments
         const db = await fetchTournaments();
         const mapped = (db ?? []).map(toRow);
-
         if (!alive) return;
         setRows(mapped);
+
+        // 2) session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!alive) return;
+
+        if (!session) {
+          setJoinedIds(new Set());
+          return;
+        }
+
+        // 3) registrations for this user (only for tournaments shown)
+        const tournamentIds = mapped.map((x) => x.id);
+        if (tournamentIds.length === 0) {
+          setJoinedIds(new Set());
+          return;
+        }
+
+        const { data: regs, error } = await supabase
+          .from("tournament_registrations")
+          .select("tournament_id")
+          .eq("user_id", session.user.id)
+          .in("tournament_id", tournamentIds);
+
+        if (!alive) return;
+
+        if (error) {
+          // إذا طلع error هنا غالباً RLS policy ناقصة (بنحلها بعدها)
+          console.error("Failed to load registrations:", error.message);
+          setJoinedIds(new Set());
+          return;
+        }
+
+        const s = new Set<string>((regs ?? []).map((r: any) => r.tournament_id));
+        setJoinedIds(s);
+
       } finally {
         if (alive) setLoading(false);
       }
@@ -145,7 +176,6 @@ export default function Next7DaysFromDb({
 
       {!loading && topN.length > 0 && (
         <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950">
-          {/* ✅ مهم: مجموع الأعمدة = 12 */}
           <div className="grid grid-cols-12 border-b border-zinc-800 px-4 py-3 text-xs text-zinc-400">
             <div className="col-span-2">Date</div>
             <div className="col-span-2">Time</div>
@@ -156,64 +186,70 @@ export default function Next7DaysFromDb({
           </div>
 
           <div className="divide-y divide-zinc-800">
-            {topN.map((t) => (
-              <div
-                key={t.id}
-                className={`grid grid-cols-12 items-center px-4 py-4 ${
-                  t.status === "LIVE" ? "bg-emerald-500/10" : ""
-                }`}
-              >
-                <div className="col-span-2 text-sm font-semibold">{t.dateLabel}</div>
-                <div className="col-span-2 text-sm text-zinc-200">{t.timeLabel}</div>
+            {topN.map((t) => {
+              const isJoined = joinedIds.has(t.id);
 
-                <div className="col-span-4">
-                  <div className="flex items-center gap-2">
+              return (
+                <div
+                  key={t.id}
+                  className={`grid grid-cols-12 items-center px-4 py-4 ${
+                    t.status === "LIVE" ? "bg-emerald-500/10" : ""
+                  }`}
+                >
+                  <div className="col-span-2 text-sm font-semibold">{t.dateLabel}</div>
+                  <div className="col-span-2 text-sm text-zinc-200">{t.timeLabel}</div>
+
+                  <div className="col-span-4">
+                    <div className="flex items-center gap-2">
+                      <Link href={`/tournaments/${t.slug}`} className="text-sm font-semibold hover:underline">
+                        {t.title}
+                      </Link>
+
+                      <span className={`rounded-full border px-2 py-1 text-[11px] ${badgeStatusClass(t.status)}`}>
+                        {t.status}
+                      </span>
+
+                      <span className="rounded-full border border-zinc-700/70 px-2 py-1 text-[11px] text-zinc-200">
+                        {t.type}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="col-span-1 text-sm font-semibold text-zinc-200 truncate">
+                    {t.sponsorName}
+                  </div>
+
+                  <div className="col-span-1 text-right font-semibold text-yellow-400">
+                    {money(t.prize)}
+                  </div>
+
+                  <div className="col-span-2 flex justify-end gap-2">
                     <Link
                       href={`/tournaments/${t.slug}`}
-                      className="text-sm font-semibold hover:underline"
+                      className="rounded-lg border border-zinc-700 px-3 py-2 text-xs font-semibold text-white hover:bg-zinc-800"
                     >
-                      {t.title}
+                      Details
                     </Link>
 
-                    <span
-                      className={`rounded-full border px-2 py-1 text-[11px] ${badgeStatusClass(
-                        t.status
-                      )}`}
-                    >
-                      {t.status}
-                    </span>
-
-                    <span className="rounded-full border border-zinc-700/70 px-2 py-1 text-[11px] text-zinc-200">
-                      {t.type}
-                    </span>
+                    {isJoined ? (
+                      <button
+                        disabled
+                        className="rounded-lg bg-zinc-700 px-4 py-2 text-xs font-semibold text-zinc-300 cursor-not-allowed"
+                      >
+                        Joined
+                      </button>
+                    ) : (
+                      <Link
+                        href={`/tournaments/${t.slug}/join`}
+                        className="rounded-lg bg-yellow-500 px-4 py-2 text-xs font-semibold text-black hover:bg-yellow-400"
+                      >
+                        Join
+                      </Link>
+                    )}
                   </div>
                 </div>
-
-                <div className="col-span-1 text-sm font-semibold text-zinc-200 truncate">
-                  {t.sponsorName}
-                </div>
-
-                <div className="col-span-1 text-right font-semibold text-yellow-400">
-                  {money(t.prize)}
-                </div>
-
-                <div className="col-span-2 flex justify-end gap-2">
-                  <Link
-                    href={`/tournaments/${t.slug}`}
-                    className="rounded-lg border border-zinc-700 px-3 py-2 text-xs font-semibold text-white hover:bg-zinc-800"
-                  >
-                    Details
-                  </Link>
-
-                  <Link
-                    href={`/tournaments/${t.slug}/join`}
-                    className="rounded-lg bg-yellow-500 px-4 py-2 text-xs font-semibold text-black hover:bg-yellow-400"
-                  >
-                    Join
-                  </Link>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="px-4 py-3 text-xs text-zinc-500">

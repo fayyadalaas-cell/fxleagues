@@ -1,13 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import React, { useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase } from "../../lib/supabase/client";
 
 export default function SignInClient({ nextUrl = "/" }: { nextUrl?: string }) {
-  const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -44,7 +41,11 @@ export default function SignInClient({ nextUrl = "/" }: { nextUrl?: string }) {
         });
       }
 
-      router.push(nextUrl || "/");
+      const target =
+        nextUrl && nextUrl !== "/" ? nextUrl : "/admin";
+
+      // Reload كامل يثبت الجلسة 100%
+      window.location.assign(target);
     }
   }
 
@@ -81,7 +82,9 @@ export default function SignInClient({ nextUrl = "/" }: { nextUrl?: string }) {
             />
           </div>
 
-          {errorMsg && <div className="text-red-500 text-sm">{errorMsg}</div>}
+          {errorMsg && (
+            <div className="text-red-500 text-sm">{errorMsg}</div>
+          )}
 
           <button
             disabled={loading}
@@ -94,7 +97,9 @@ export default function SignInClient({ nextUrl = "/" }: { nextUrl?: string }) {
         <div className="text-sm text-zinc-400 mt-4">
           Don&apos;t have an account?{" "}
           <Link
-            href={`/signup?next=${encodeURIComponent(nextUrl || "/")}`}
+            href={`/signup?next=${encodeURIComponent(
+              nextUrl || "/"
+            )}`}
             className="text-yellow-400 hover:underline"
           >
             Create one

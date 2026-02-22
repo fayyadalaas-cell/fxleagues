@@ -9,6 +9,7 @@ export default function SignupClient({ nextUrl }: { nextUrl: string }) {
   const router = useRouter();
 
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");   // ✅ NEW
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -25,7 +26,12 @@ export default function SignupClient({ nextUrl }: { nextUrl: string }) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: name } },
+      options: { 
+        data: { 
+          full_name: name,
+          phone: phone   // ✅ NEW
+        } 
+      },
     });
 
     setLoading(false);
@@ -58,12 +64,26 @@ export default function SignupClient({ nextUrl }: { nextUrl: string }) {
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          
           <div>
             <label className="text-sm text-zinc-300">Full Name</label>
             <input
               className="mt-2 w-full bg-black border border-zinc-700 rounded-lg px-4 py-3 outline-none focus:border-yellow-500"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+
+          {/* ✅ PHONE FIELD */}
+          <div>
+            <label className="text-sm text-zinc-300">Phone</label>
+            <input
+              className="mt-2 w-full bg-black border border-zinc-700 rounded-lg px-4 py-3 outline-none focus:border-yellow-500"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+1 416..."
               required
             />
           </div>

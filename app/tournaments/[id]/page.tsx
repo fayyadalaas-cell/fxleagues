@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -15,7 +14,7 @@ type Row = {
   trades: number;
 };
 
-type Tab = "overview" | "leaderboard" | "prizes";
+type Tab = "overview" | "leaderboard";
 
 type DbTournament = {
   id: string; // uuid
@@ -24,21 +23,17 @@ type DbTournament = {
   start_date: string | null; // timestamp
   end_date: string | null; // timestamp
   prize_pool: number | null;
+  winners_count?: number | null;
+  prize_breakdown?: any[] | null;
   created_at: string;
   slug: string | null;
 
-  // optional fields (as you added in SQL)
-  status?: string | null; // LIVE / UPCOMING
+  status?: string | null; // LIVE / UPCOMING / CLOSED
   type?: string | null; // Daily / Weekly / Monthly / Special
   sponsor_name?: string | null;
-  sponsor_logo_key?: string | null; // exness / fxleagues / icmarkets / ...
+  sponsor_logo_key?: string | null;
   entry?: string | null; // FREE
 };
-
-function normalizeSlug(raw: string) {
-  // If you receive an old URL like sunday-major-0222 -> return sunday-major
-  return (raw || "").replace(/-\d{4,}$/g, "");
-}
 
 function money(n: number) {
   return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -53,7 +48,6 @@ function formatDateTime(ts: string | null) {
 }
 
 function logoPathFromKey(key?: string | null) {
-  // Images are under /public/brokers
   const k = (key || "").toLowerCase();
   const map: Record<string, string> = {
     exness: "/brokers/exness.png",
@@ -67,12 +61,55 @@ function logoPathFromKey(key?: string | null) {
   return map[k] || "";
 }
 
+type RegStage = "not_joined" | "joined" | "pending_review" | "approved" | "rejected";
+
+function getStage(alreadyJoined: boolean, status: string | null): RegStage {
+  if (!alreadyJoined) return "not_joined";
+  const s = (status || "").toLowerCase();
+
+  if (s === "approved") return "approved";
+  if (s === "rejected") return "rejected";
+  if (s === "pending_review") return "pending_review";
+  if (s.includes("pending")) return "pending_review"; // covers joined_pending etc.
+
+  return "joined";
+}
+
+/**
+ * Fallback prize breakdown when DB doesn't provide prize_breakdown.
+ * - winners=1 => 100%
+ * - winners=2 => 70/30
+ * - winners=3 => 50/30/20
+ * - others => equal split
+ */
+function buildFallbackPrizes(prizePool: number, winnersCount: number) {
+  const wc = Math.max(1, Math.min(50, Number(winnersCount || 1)));
+  const pool = Math.max(0, Number(prizePool || 0));
+
+  let weights: number[] = [];
+  if (wc === 1) weights = [1];
+  else if (wc === 2) weights = [0.7, 0.3];
+  else if (wc === 3) weights = [0.5, 0.3, 0.2];
+  else weights = Array.from({ length: wc }, () => 1 / wc);
+
+  // normalize just in case
+  const sum = weights.reduce((a, b) => a + b, 0) || 1;
+  weights = weights.map((w) => w / sum);
+
+  // amounts with rounding + last fix
+  const raw = weights.map((w) => Math.round(pool * w));
+  const diff = pool - raw.reduce((a, b) => a + b, 0);
+  raw[raw.length - 1] = Math.max(0, raw[raw.length - 1] + diff);
+
+  return raw.map((amount, i) => ({ position: i + 1, amount }));
+}
+
 export default function TournamentDetailsPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
 
   const rawId = params?.id ?? "";
-  const slug = rawId; // ✅ خليها زي ما هي بدون normalize
+  const slug = rawId;
 
   const [tab, setTab] = useState<Tab>("overview");
 
@@ -80,22 +117,22 @@ export default function TournamentDetailsPage() {
   const [t, setT] = useState<DbTournament | null>(null);
   const [error, setError] = useState<string>("");
 
-  // ✅ participants count + join state
+  // participants count + join state
   const [participantsCount, setParticipantsCount] = useState(0);
   const [alreadyJoined, setAlreadyJoined] = useState(false);
+  const [registrationStatus, setRegistrationStatus] = useState<string | null>(null);
 
   // join modal
   const [openJoin, setOpenJoin] = useState(false);
   const [agree, setAgree] = useState(false);
 
-  // ✅ credentials modal + form fields
+  // credentials modal + form fields
   const [openCreds, setOpenCreds] = useState(false);
   const [platform, setPlatform] = useState("");
   const [login, setLogin] = useState("");
   const [investorPassword, setInvestorPassword] = useState("");
   const [server, setServer] = useState("");
   const [credentialsSubmitted, setCredentialsSubmitted] = useState(false);
-
 
   useEffect(() => {
     let cancelled = false;
@@ -104,14 +141,11 @@ export default function TournamentDetailsPage() {
       setLoading(true);
       setError("");
 
-      // Fetch tournament by slug (not uuid)
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "id,title,description,start_date,end_date,prize_pool,created_at,slug,status,type,sponsor_name,sponsor_logo_key,entry,participants_count"
+          "id,title,description,start_date,end_date,prize_pool,created_at,slug,status,type,sponsor_name,sponsor_logo_key,entry,winners_count,prize_breakdown"
         )
-
-
         .eq("slug", slug)
         .limit(1)
         .maybeSingle();
@@ -122,6 +156,8 @@ export default function TournamentDetailsPage() {
         setError(error.message);
         setT(null);
         setParticipantsCount(0);
+        setAlreadyJoined(false);
+        setCredentialsSubmitted(false);
         setLoading(false);
         return;
       }
@@ -129,59 +165,53 @@ export default function TournamentDetailsPage() {
       if (!data) {
         setT(null);
         setParticipantsCount(0);
+        setAlreadyJoined(false);
+        setCredentialsSubmitted(false);
         setLoading(false);
         return;
       }
 
       setT(data as DbTournament);
-      const { data: { session } } = await supabase.auth.getSession();
 
-if (session) {
-  const { data: reg } = await supabase
-    .from("tournament_registrations")
-    .select("id")
-    .eq("tournament_id", (data as any).id)
-    .eq("user_id", session.user.id)
-    .maybeSingle();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-  setAlreadyJoined(!!reg);
-} else {
-  setAlreadyJoined(false);
-}
+      // participants count
+      const countRes = await supabase
+        .from("tournament_registrations")
+        .select("*", { count: "exact", head: true })
+        .eq("tournament_id", data.id);
 
-const countResponse = await supabase
-  .from("tournament_registrations")
-  .select("*", { count: "exact", head: true })
-  .eq("tournament_id", (data as any).id);
+      setParticipantsCount(countRes.count ?? 0);
 
-setParticipantsCount(countResponse.count ?? 0);
+      if (!session) {
+        setAlreadyJoined(false);
+        setCredentialsSubmitted(false);
+        setLoading(false);
+        return;
+      }
 
+      // joined?
+      const { data: reg } = await supabase
+        .from("tournament_registrations")
+        .select("id,status,details_submitted")
+        .eq("tournament_id", data.id)
+        .eq("user_id", session.user.id)
+        .maybeSingle();
 
-// ✅ Get real participants count from tournament_registrations
-const { count, error: countError } = await supabase
-  .from("tournament_registrations")
-  .select("*", { count: "exact", head: true })
-  .eq("tournament_id", data.id);
+      setAlreadyJoined(!!reg);
+      setRegistrationStatus((reg as any)?.status ?? null);
 
-if (!countError) {
-  setParticipantsCount(count ?? 0);
-  // check if already joined
-const { data: regs, error: countError } = await supabase
-  .from("tournament_registrations")
-  .select("id")
-  .eq("tournament_id", data.id);
+      // credentials submitted?
+      const { data: creds } = await supabase
+        .from("tournament_credentials")
+        .select("id")
+        .eq("tournament_id", data.id)
+        .eq("user_id", session.user.id)
+        .maybeSingle();
 
-if (!countError && regs) {
-  setParticipantsCount(regs.length);
-} else {
-  setParticipantsCount(0);
-}
-
-
-} else {
-  setParticipantsCount(0);
-}
-
+      setCredentialsSubmitted(!!creds);
 
       if (!cancelled) setLoading(false);
     }
@@ -191,6 +221,8 @@ if (!countError && regs) {
       setLoading(false);
       setT(null);
       setParticipantsCount(0);
+      setAlreadyJoined(false);
+      setCredentialsSubmitted(false);
     }
 
     return () => {
@@ -198,6 +230,7 @@ if (!countError && regs) {
     };
   }, [slug]);
 
+  // demo rows (replace later with real source)
   const rows: Row[] = useMemo(
     () => [
       { rank: 1, user: "Trader_Alpha", pnl: 1240, winRate: 61, maxDD: 4.2, trades: 38 },
@@ -228,84 +261,98 @@ if (!countError && regs) {
   };
 
   async function handleOpenJoin() {
-  const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-  if (!session) {
-    router.push("/signin");
-    return;
+    if (!session) {
+      router.push("/signin");
+      return;
+    }
+
+    setAgree(false);
+    setOpenJoin(true);
   }
-
-  setAgree(false);
-  setOpenJoin(true);
-}
-
 
   async function handleJoinNow() {
-  if (!agree || !t) return;
+    if (!agree || !t) return;
 
-  const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-  if (!session) {
-    router.push("/signin");
-    return;
-  }
+    if (!session) {
+      router.push("/signin");
+      return;
+    }
 
-   const { error } = await supabase
-  .rpc("join_tournament", {
-    p_tournament_id: t.id,
-  });
-
-
-
-
-  if (error) {
-  if ((error as any).code === "23505") {
-    alert("You already joined this tournament.");
-    setOpenJoin(false);
-    return;
-  }
-
-  alert("Error joining tournament: " + error.message);
-  return;
-}
-
-
-  alert("Successfully registered!");
-  setAlreadyJoined(true);
-  setOpenJoin(false);
-  setParticipantsCount((c) => c + 1);
-
-}
-
-async function handleSubmitCredentials() {
-  if (!t) return;
-
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return;
-
-  const { error } = await supabase
-    .from("tournament_credentials")
-    .insert({
-      tournament_id: t.id,
-      user_id: session.user.id,
-      platform,
-      login,
-      investor_password: investorPassword,
-      server,
+    const { error } = await supabase.rpc("join_tournament", {
+      p_tournament_id: t.id,
     });
 
-  if (error) {
-    alert("Error saving credentials: " + error.message);
-    return;
+    if (error) {
+      if ((error as any).code === "23505") {
+        alert("You already joined this tournament.");
+        setOpenJoin(false);
+        return;
+      }
+      alert("Error joining tournament: " + error.message);
+      return;
+    }
+
+    alert("Successfully registered!");
+    setAlreadyJoined(true);
+    setRegistrationStatus("joined_pending");
+    setOpenJoin(false);
+    setParticipantsCount((c) => c + 1);
   }
 
-  alert("Credentials submitted successfully!");
-setCredentialsSubmitted(true);
-setOpenCreds(false);
+  async function handleSubmitCredentials() {
+    if (!t) return;
 
-}
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) return;
 
-  // UI states
+    const { error: credErr } = await supabase
+      .from("tournament_credentials")
+      .upsert(
+        {
+          tournament_id: t.id,
+          user_id: session.user.id,
+          platform,
+          login,
+          investor_password: investorPassword,
+          server,
+          status: "submitted",
+          updated_at: new Date().toISOString(),
+        } as any,
+        { onConflict: "tournament_id,user_id" }
+      );
+
+    if (credErr) {
+      alert("Error saving credentials: " + credErr.message);
+      return;
+    }
+
+    const { error: regErr } = await supabase
+      .from("tournament_registrations")
+      .update({ status: "pending_review", details_submitted: true })
+      .eq("tournament_id", t.id)
+      .eq("user_id", session.user.id);
+
+    if (regErr) {
+      alert("Saved credentials, but failed to update status: " + regErr.message);
+      return;
+    }
+
+    alert("Credentials submitted successfully!");
+    setCredentialsSubmitted(true);
+    setRegistrationStatus("pending_review");
+    setOpenCreds(false);
+  }
+
   if (loading) {
     return (
       <main className="min-h-screen bg-black text-white">
@@ -360,7 +407,6 @@ setOpenCreds(false);
   }
 
   const sponsorName = t.sponsor_name || "FXLeagues";
-  const sponsorLogo = logoPathFromKey(t.sponsor_logo_key);
   const status = (t.status || "UPCOMING").toUpperCase();
   const type = t.type || "Daily";
   const entry = t.entry || "FREE";
@@ -368,356 +414,592 @@ setOpenCreds(false);
 
   const start = formatDateTime(t.start_date);
   const end = formatDateTime(t.end_date);
+  const sponsorKey = (t.sponsor_logo_key || "").toLowerCase();
+
+  // platform links based on sponsor
+  const platformLinks: Record<string, { downloadUrl: string; demoSignupUrl: string; platformName: string }> = {
+    exness: {
+      platformName: "MetaTrader 5 (Exness)",
+      downloadUrl: "https://www.exness.com/platforms/metatrader-5/",
+      demoSignupUrl: "https://www.exness.com/open-account/",
+    },
+    icmarkets: {
+      platformName: "MetaTrader 5 (IC Markets)",
+      downloadUrl: "https://www.icmarkets.com/global/en/trading-platforms/metatrader-5",
+      demoSignupUrl: "https://www.icmarkets.com/global/en/open-trading-account",
+    },
+    vantage: {
+      platformName: "MetaTrader 5 (Vantage)",
+      downloadUrl: "https://www.vantagemarkets.com/trading-platforms/metatrader-5/",
+      demoSignupUrl: "https://www.vantagemarkets.com/open-live-account/",
+    },
+    fxleagues: {
+      platformName: "MetaTrader 5",
+      downloadUrl: "#",
+      demoSignupUrl: "#",
+    },
+  };
+
+  const platformInfo =
+    platformLinks[sponsorKey] || {
+      platformName: "Trading Platform",
+      downloadUrl: "#",
+      demoSignupUrl: "#",
+    };
+
+  const LEVERAGE = "1:100";
+  const STARTING_BALANCE = "$10,000";
+
+  const stage = getStage(alreadyJoined, registrationStatus);
+
+  const steps = [
+    { key: "download", title: "Download Platform" },
+    { key: "demo", title: "Create Demo Account" },
+    { key: "submit", title: "Submit Trading Details" },
+    { key: "review", title: "Wait for Approval" },
+  ] as const;
+
+  function stepDone(key: (typeof steps)[number]["key"]) {
+    if (stage === "not_joined") return false;
+    if (key === "download") return true;
+    if (key === "demo") return true;
+    if (key === "submit") return credentialsSubmitted || stage === "pending_review" || stage === "approved";
+    if (key === "review") return stage === "approved";
+    return false;
+  }
+
+  function stepCurrent(key: (typeof steps)[number]["key"]) {
+    if (stage === "not_joined") return false;
+    if (stage === "joined") return key === "submit";
+    if (stage === "pending_review") return key === "review";
+    return false;
+  }
+
+  const hint =
+    stage === "not_joined"
+      ? "Join the tournament to unlock the next steps."
+      : stage === "joined"
+      ? "Next: Create a demo account and submit your trading details."
+      : stage === "pending_review"
+      ? "Your trading details are submitted. Please wait for approval."
+      : stage === "approved"
+      ? "Approved ✅ You’re ready to trade."
+      : "Rejected ❌ Please resubmit correct trading details.";
+
+  // ✅ Prize breakdown: DB first, fallback second
+  const dbPrizes = Array.isArray((t as any).prize_breakdown) ? ((t as any).prize_breakdown as any[]) : [];
+  const winnersCount = Math.max(1, Number(t.winners_count || dbPrizes.length || 1));
+  const finalPrizes =
+    dbPrizes.length > 0
+      ? dbPrizes
+          .map((p) => ({ position: Number(p.position || 0), amount: Number(p.amount || 0) }))
+          .filter((p) => p.position > 0)
+          .sort((a, b) => a.position - b.position)
+      : buildFallbackPrizes(prizePool, winnersCount);
 
   return (
     <main className="min-h-screen bg-black text-white">
       <div className="max-w-6xl mx-auto px-6 py-12">
-        {/* Top bar */}
-        <div className="flex items-start justify-between gap-6">
-          <div>
-            <Link href="/schedule" className="text-yellow-400 hover:underline">
-              ← Back to Schedule
-            </Link>
+        <div className="flex flex-col gap-6">
+          {/* Row 1 */}
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+            <div className="min-w-0">
+              <Link href="/schedule" className="text-yellow-400 hover:underline">
+                ← Back to Schedule
+              </Link>
 
-            <div className="flex items-center gap-3 mt-5">
-              {sponsorLogo ? (
-                <div className="h-10 w-10 rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden flex items-center justify-center">
-                  <Image src={sponsorLogo} alt={sponsorName} width={40} height={40} />
+              <div className="flex items-center gap-3 mt-5">
+                <div className="leading-tight min-w-0">
+                  <h1 className="text-4xl font-extrabold truncate">
+                    {t.title} <span className="text-yellow-400">Details</span>
+                  </h1>
+
+                  {t.description ? <p className="text-zinc-400 mt-1 line-clamp-2">{t.description}</p> : null}
                 </div>
-              ) : (
-                <div className="h-10 w-10 rounded-xl border border-zinc-800 bg-zinc-900/40" />
-              )}
-
-              <div className="leading-tight">
-                <h1 className="text-4xl font-extrabold">
-                  {t.title} <span className="text-yellow-400">Details</span>
-                </h1>
-                <p className="text-zinc-400 mt-1">{t.description ?? "—"}</p>
               </div>
             </div>
 
-            <div className="mt-4 text-sm text-zinc-400">
-              <span className="text-zinc-200 font-semibold">{start.date}</span> • {start.time} → {end.time} •
-              <span className="ml-2 px-2 py-1 rounded-full border border-zinc-800 bg-black/30 text-xs">{type}</span>
-              <span className="ml-2 px-2 py-1 rounded-full border border-zinc-800 bg-black/30 text-xs">{status}</span>
+            {/* Right actions */}
+            <div className="mt-2 flex flex-wrap items-center justify-start md:justify-end gap-2">
+              <button
+                onClick={() => alert("Rules popup later")}
+                className="h-10 rounded-xl border border-zinc-700 bg-black/20 px-4 text-sm font-semibold text-white hover:bg-zinc-900"
+              >
+                Rules
+              </button>
+
+              {alreadyJoined && (
+                <div
+                  className={
+                    "h-10 inline-flex items-center rounded-xl px-4 text-sm font-semibold border " +
+                    (registrationStatus === "approved"
+                      ? "border-emerald-700/50 bg-emerald-950/30 text-emerald-200"
+                      : registrationStatus === "rejected"
+                      ? "border-red-700/50 bg-red-950/30 text-red-200"
+                      : "border-yellow-700/50 bg-yellow-950/20 text-yellow-200")
+                  }
+                >
+                  Status:&nbsp;
+                  <span className="font-bold">{registrationStatus || "joined_pending"}</span>
+                </div>
+              )}
+
+              {alreadyJoined ? (
+                <div className="h-10 inline-flex items-center rounded-xl border border-zinc-700 bg-zinc-900/40 px-4 text-sm font-semibold text-zinc-200">
+                  Joined
+                </div>
+              ) : (
+                <button
+                  disabled={status === "CLOSED"}
+                  onClick={handleOpenJoin}
+                  className={
+                    "h-10 rounded-xl px-5 text-sm font-semibold " +
+                    (status === "CLOSED"
+                      ? "cursor-not-allowed bg-zinc-700 text-zinc-300"
+                      : "bg-yellow-500 text-black hover:brightness-95")
+                  }
+                >
+                  {status === "CLOSED" ? "Closed" : "Join Tournament"}
+                </button>
+              )}
+
+              {alreadyJoined && !credentialsSubmitted && status !== "CLOSED" && (
+                <button
+                  onClick={() => setOpenCreds(true)}
+                  className="h-10 rounded-xl border border-zinc-700 bg-black/20 px-4 text-sm font-semibold text-white hover:bg-zinc-900"
+                >
+                  Submit Trading Details
+                </button>
+              )}
+
+              {alreadyJoined && credentialsSubmitted && (
+                <div className="h-10 inline-flex items-center rounded-xl border border-zinc-700 bg-zinc-900/40 px-4 text-sm font-semibold text-zinc-300">
+                  Submitted
+                </div>
+              )}
             </div>
           </div>
 
-        <div className="flex gap-2 mt-2">
-  <button
-    onClick={() => alert("Rules popup later")}
-    className="border border-zinc-700 px-4 py-2 rounded-lg hover:bg-zinc-900"
-  >
-    Rules
-  </button>
+          {/* Stats row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+              <div className="text-xs text-zinc-400">Entry</div>
+              <div className="text-3xl font-extrabold mt-2">{entry}</div>
+            </div>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+              <div className="text-xs text-zinc-400">Prize Pool</div>
+              <div className="text-3xl font-extrabold mt-2">${money(prizePool)}</div>
+            </div>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+              <div className="text-xs text-zinc-400">Sponsor</div>
+              <div className="text-3xl font-extrabold mt-2 truncate">{sponsorName}</div>
+            </div>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+              <div className="text-xs text-zinc-400">Participants</div>
+              <div className="text-3xl font-extrabold mt-2">{participantsCount}</div>
+            </div>
+          </div>
 
-  <button
-    disabled={alreadyJoined || status === "CLOSED"}
-    onClick={handleOpenJoin}
-    className={
-      status === "CLOSED" || alreadyJoined
-        ? "bg-zinc-700 text-zinc-300 px-5 py-2 rounded-lg font-semibold cursor-not-allowed"
-        : "bg-yellow-500 text-black px-5 py-2 rounded-lg font-semibold"
-    }
-  >
-    {status === "CLOSED"
-      ? "Closed"
-      : alreadyJoined
-      ? "Joined"
-      : "Join Tournament"}
-  </button>
-
- {alreadyJoined && status !== "CLOSED" && (
-  <button
-    disabled={credentialsSubmitted}
-    onClick={() => setOpenCreds(true)}
-    className={
-      credentialsSubmitted
-        ? "border border-zinc-700 px-4 py-2 rounded-lg bg-zinc-800 text-zinc-400 cursor-not-allowed"
-        : "border border-zinc-700 px-4 py-2 rounded-lg hover:bg-zinc-900"
-    }
-  >
-    {credentialsSubmitted ? "Submitted" : "Submit Trading Details"}
-  </button>
-)}
-
-</div>
-</div>
-
-
-        {/* Tabs */}
-        <div className="mt-10 flex gap-2">
-          <TabButton value="overview" label="Overview" />
-          <TabButton value="leaderboard" label="Leaderboard" />
-          <TabButton value="prizes" label="Prizes" />
-        </div>
-
-        {/* Overview */}
-        {tab === "overview" && (
-          <>
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-                <div className="text-xs text-zinc-400">Entry</div>
-                <div className="text-2xl font-bold mt-1">{entry}</div>
+          {/* Next Steps */}
+          <div className="mt-12 rounded-2xl border border-yellow-500/25 bg-gradient-to-b from-zinc-950/90 to-zinc-950/60 p-8 shadow-[0_0_0_1px_rgba(234,179,8,0.12),0_25px_70px_rgba(0,0,0,0.7)]">
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+              <div>
+                <div className="text-xl md:text-2xl font-extrabold tracking-tight">
+                  Next steps
+                  <span className="ml-2 text-xs font-semibold text-yellow-200/90 border border-yellow-500/20 bg-yellow-500/10 px-2 py-1 rounded-full">
+                    Required
+                  </span>
+                </div>
+                <div className="mt-1 text-sm text-zinc-300/90">{hint}</div>
               </div>
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-                <div className="text-xs text-zinc-400">Prize Pool</div>
-                <div className="text-2xl font-bold mt-1">${money(prizePool)}</div>
-              </div>
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-                <div className="text-xs text-zinc-400">Sponsor</div>
-                <div className="text-2xl font-bold mt-1">{sponsorName}</div>
-              </div>
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-                <div className="text-xs text-zinc-400">Participants</div>
-                <div className="text-2xl font-bold mt-1">{participantsCount}</div>
+
+              <div
+                className={
+                  stage === "approved"
+                    ? "inline-flex items-center rounded-xl border border-emerald-700/40 bg-emerald-950/30 px-3 py-2 text-xs text-emerald-200"
+                    : stage === "rejected"
+                    ? "inline-flex items-center rounded-xl border border-red-700/40 bg-red-950/30 px-3 py-2 text-xs text-red-200"
+                    : "inline-flex items-center rounded-xl border border-yellow-700/40 bg-yellow-950/20 px-3 py-2 text-xs text-yellow-200"
+                }
+              >
+                Status:&nbsp;
+                <span className="font-semibold">{registrationStatus || "not_joined"}</span>
               </div>
             </div>
 
-            {/* Times */}
-            <div className="mt-6 bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-              <div className="text-xs text-zinc-400">Schedule</div>
-              <div className="mt-2 text-sm text-zinc-300">
-                Starts: <span className="text-white font-semibold">{start.date} {start.time}</span>
-                <br />
-                Ends: <span className="text-white font-semibold">{end.date} {end.time}</span>
-              </div>
+            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-4">
+              {steps.map((s, idx) => {
+                const done = stepDone(s.key);
+                const current = stepCurrent(s.key);
 
-              <div className="mt-4 text-xs text-zinc-500">
-                Note: Advanced fields (Platform / Leverage / Starting balance…) can be added later in DB if needed.
-              </div>
+                return (
+                  <div
+                    key={s.key}
+                    className={
+                      "group rounded-2xl p-5 transition-all duration-200 min-h-[110px] " +
+                      (done
+                        ? "border border-emerald-700/30 bg-emerald-950/15 hover:bg-emerald-950/25"
+                        : current
+                        ? "border border-yellow-700/50 bg-yellow-950/15 shadow-[0_0_0_1px_rgba(234,179,8,0.10),0_16px_40px_rgba(0,0,0,0.55)] hover:bg-yellow-950/25"
+                        : "border border-zinc-800 bg-black/20 hover:bg-zinc-950/40 hover:border-zinc-700")
+                    }
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-zinc-400">Step {idx + 1}</div>
+                      <div className="text-xs">{done ? "✅" : current ? "👉" : ""}</div>
+                    </div>
+
+                    <div className="mt-2 text-base font-bold">{s.title}</div>
+
+                    {s.key === "submit" && stage === "joined" && (
+                      <div className="mt-2 text-xs text-zinc-400">
+                        Use <span className="text-white">Submit Trading Details</span> button above.
+                      </div>
+                    )}
+
+                    {s.key === "review" && stage === "pending_review" && (
+                      <div className="mt-2 text-xs text-zinc-400">We’ll approve you shortly.</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ✅ Prize Distribution (ALWAYS shows) */}
+          <div className="mt-6 w-full mx-auto rounded-2xl border border-zinc-800 bg-zinc-950/60 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-bold">🏆 Prize Distribution</h2>
+              <div className="text-xs text-zinc-400">Total Winners: {finalPrizes.length}</div>
             </div>
 
-            {/* Top 3 demo */}
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-              {top3.map((p) => (
-                <div key={p.rank} className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="text-xs text-zinc-400">Rank</div>
-                      <div className="text-3xl font-extrabold mt-1">#{p.rank}</div>
+            <div className="mt-4 grid gap-3 justify-center [grid-template-columns:repeat(auto-fit,minmax(190px,220px))]">
+              {finalPrizes.map((p: any) => {
+                const pos = Number(p.position || 0);
+                const amt = Number(p.amount || 0);
+
+                const isFirst = pos === 1;
+                const isSecond = pos === 2;
+                const isThird = pos === 3;
+
+                const style = isFirst
+                  ? "bg-yellow-500 text-black shadow-lg"
+                  : isSecond
+                  ? "bg-zinc-800 border border-zinc-700 text-white"
+                  : isThird
+                  ? "bg-zinc-900 border border-zinc-800 text-white"
+                  : "bg-black/30 border border-zinc-800 text-white";
+
+                return (
+                  <div key={pos} className={`w-full max-w-[230px] rounded-2xl p-5 text-center ${style} transition-all`}>
+                    <div className="text-xs opacity-70">Position</div>
+                    <div className="mt-1 text-2xl font-extrabold">#{pos}</div>
+
+                    <div className="mt-1 text-2xl font-extrabold">${money(amt)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ✅ Meta row (بدون •) */}
+          <div className="text-sm text-zinc-400">
+            <span className="text-zinc-200 font-semibold">{start.date}</span> — {start.time} → {end.time}
+            <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full border border-zinc-800 bg-black/30 text-xs">
+              {type}
+            </span>
+            <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full border border-zinc-800 bg-black/30 text-xs">
+              {status}
+            </span>
+          </div>
+
+          {/* Steps cards */}
+          {alreadyJoined && (
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+                <div className="text-xs text-zinc-400">Step 1</div>
+                <div className="mt-2 text-lg font-bold">Download Platform</div>
+                <div className="mt-1 text-sm text-zinc-400">{platformInfo.platformName}</div>
+
+                <a
+                  href={platformInfo.downloadUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-yellow-500 px-4 py-3 text-sm font-semibold text-black hover:brightness-95"
+                >
+                  Download
+                </a>
+              </div>
+
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+                <div className="text-xs text-zinc-400">Step 2</div>
+                <div className="mt-2 text-lg font-bold">Create Demo Account</div>
+                <div className="mt-1 text-sm text-zinc-400">Open demo account with sponsor</div>
+
+                <a
+                  href={platformInfo.demoSignupUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-zinc-700 bg-black/30 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-900"
+                >
+                  Open Demo Signup
+                </a>
+              </div>
+
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+                <div className="text-xs text-zinc-400">Contest Rules</div>
+
+                <div className="mt-3 text-sm text-zinc-300">
+                  <div>
+                    Leverage: <span className="text-white font-semibold">{LEVERAGE}</span>
+                  </div>
+                  <div className="mt-1">
+                    Starting Balance: <span className="text-white font-semibold">{STARTING_BALANCE}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 text-xs text-zinc-500">Use investor password only. No real trading required.</div>
+              </div>
+            </div>
+          )}
+
+          {/* Tabs */}
+          <div className="mt-10 flex gap-2">
+            <TabButton value="overview" label="Overview" />
+            <TabButton value="leaderboard" label="Leaderboard" />
+          </div>
+
+          {/* Overview */}
+          {tab === "overview" && (
+            <>
+              <div className="mt-6 bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+                <div className="text-xs text-zinc-400">Schedule</div>
+                <div className="mt-2 text-sm text-zinc-300">
+                  Starts: <span className="text-white font-semibold">{start.date} {start.time}</span>
+                  <br />
+                  Ends: <span className="text-white font-semibold">{end.date} {end.time}</span>
+                </div>
+
+                <div className="mt-4 text-xs text-zinc-500">
+                  Note: Advanced fields (Platform / Leverage / Starting balance…) can be added later in DB if needed.
+                </div>
+              </div>
+
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+                {top3.map((p) => (
+                  <div key={p.rank} className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="text-xs text-zinc-400">Rank</div>
+                        <div className="text-3xl font-extrabold mt-1">#{p.rank}</div>
+                      </div>
+
+                      <div className="text-xs font-bold px-3 py-1 rounded-full border border-zinc-700 bg-black/40">
+                        TOP 3
+                      </div>
                     </div>
 
-                    <div className="text-xs font-bold px-3 py-1 rounded-full border border-zinc-700 bg-black/40">
-                      TOP 3
+                    <div className="mt-5">
+                      <div className="text-xl font-semibold">{p.user}</div>
+                      <div className="text-sm text-zinc-400 mt-1">
+                        Win Rate: {p.winRate}% • Max DD: {p.maxDD}% • Trades: {p.trades}
+                      </div>
+
+                      <div className="mt-4 flex items-baseline justify-between">
+                        <div className="text-zinc-400 text-sm">PnL</div>
+                        <div className="text-2xl font-bold text-green-400">+${money(p.pnl)}</div>
+                      </div>
                     </div>
                   </div>
+                ))}
+              </div>
 
-                  <div className="mt-5">
-                    <div className="text-xl font-semibold">{p.user}</div>
-                    <div className="text-sm text-zinc-400 mt-1">
-                      Win Rate: {p.winRate}% • Max DD: {p.maxDD}% • Trades: {p.trades}
-                    </div>
+              <div className="mt-8 text-sm text-zinc-400">
+                Tip: Use the <span className="text-white font-semibold">Leaderboard</span> tab to view full standings.
+              </div>
+            </>
+          )}
 
-                    <div className="mt-4 flex items-baseline justify-between">
-                      <div className="text-zinc-400 text-sm">PnL</div>
-                      <div className="text-2xl font-bold text-green-400">+${money(p.pnl)}</div>
-                    </div>
-                  </div>
+          {/* Leaderboard */}
+          {tab === "leaderboard" && (
+            <div className="mt-6 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+              <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+                <h2 className="text-xl font-semibold">Leaderboard</h2>
+                <div className="text-sm text-zinc-400">Demo data</div>
+              </div>
+
+              <div className="px-6 py-3 text-xs text-zinc-400 grid grid-cols-6">
+                <div>Rank</div>
+                <div className="col-span-2">User</div>
+                <div className="text-right">PnL</div>
+                <div className="text-right">Win%</div>
+                <div className="text-right">Max DD</div>
+              </div>
+
+              {rows.map((r) => (
+                <div
+                  key={r.rank}
+                  className="px-6 py-4 border-t border-zinc-800 grid grid-cols-6 items-center hover:bg-black/30"
+                >
+                  <div className="font-semibold">#{r.rank}</div>
+                  <div className="col-span-2">{r.user}</div>
+                  <div className="text-right font-semibold text-green-400">+${money(r.pnl)}</div>
+                  <div className="text-right">{r.winRate}%</div>
+                  <div className="text-right">{r.maxDD}%</div>
                 </div>
               ))}
             </div>
+          )}
 
-            <div className="mt-8 text-sm text-zinc-400">
-              Tip: Use the <span className="text-white font-semibold">Leaderboard</span> tab to view full standings.
-            </div>
-          </>
-        )}
-
-        {/* Leaderboard */}
-        {tab === "leaderboard" && (
-          <div className="mt-6 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Leaderboard</h2>
-              <div className="text-sm text-zinc-400">Demo data</div>
-            </div>
-
-            <div className="px-6 py-3 text-xs text-zinc-400 grid grid-cols-6">
-              <div>Rank</div>
-              <div className="col-span-2">User</div>
-              <div className="text-right">PnL</div>
-              <div className="text-right">Win%</div>
-              <div className="text-right">Max DD</div>
-            </div>
-
-            {rows.map((r) => (
-              <div
-                key={r.rank}
-                className="px-6 py-4 border-t border-zinc-800 grid grid-cols-6 items-center hover:bg-black/30"
-              >
-                <div className="font-semibold">#{r.rank}</div>
-                <div className="col-span-2">{r.user}</div>
-                <div className="text-right font-semibold text-green-400">+${money(r.pnl)}</div>
-                <div className="text-right">{r.winRate}%</div>
-                <div className="text-right">{r.maxDD}%</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Prizes */}
-        {tab === "prizes" && (
-          <div className="mt-6 bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-            <div className="text-sm text-zinc-400">
-              Detailed prizes can be added later (separate prizes table or JSON column).
-            </div>
-            <div className="mt-4 text-2xl font-bold">Prize Pool: ${money(prizePool)}</div>
-          </div>
-        )}
-
-        {/* Join Modal */}
-        {openJoin && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4">
-            <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6 relative">
-              <button
-                onClick={() => setOpenJoin(false)}
-                className="absolute right-4 top-4 text-zinc-400 hover:text-white"
-                aria-label="Close"
-              >
-                ✕
-              </button>
-
-              <h3 className="text-xl font-bold">
-                Join: <span className="text-yellow-400">{t.title}</span>
-              </h3>
-
-              <div className="mt-4 text-sm text-zinc-300">
-                Required info (later): <span className="text-white font-semibold">email, phone, name</span> + trading
-                login details.
-              </div>
-
-              <div className="mt-4 flex items-start gap-2 text-sm text-zinc-300">
-                <input
-                  id="agree"
-                  type="checkbox"
-                  checked={agree}
-                  onChange={(e) => setAgree(e.target.checked)}
-                  className="mt-1"
-                />
-                <label htmlFor="agree">
-                  I agree to the <span className="text-yellow-400">tournament rules</span> and{" "}
-                  <span className="text-yellow-400">privacy policy</span>.
-                </label>
-              </div>
-
-              <div className="mt-6 flex gap-3">
+          {/* Join Modal */}
+          {openJoin && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4">
+              <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6 relative">
                 <button
                   onClick={() => setOpenJoin(false)}
-                  className="flex-1 border border-zinc-700 px-4 py-2 rounded-lg hover:bg-zinc-800"
+                  className="absolute right-4 top-4 text-zinc-400 hover:text-white"
+                  aria-label="Close"
                 >
-                  Cancel
+                  ✕
                 </button>
 
-                <button
-                  disabled={!agree}
-                  onClick={handleJoinNow}
-                  className={
-                    agree
-                      ? "flex-1 bg-yellow-500 text-black px-4 py-2 rounded-lg font-semibold"
-                      : "flex-1 bg-yellow-500/40 text-black/60 px-4 py-2 rounded-lg font-semibold cursor-not-allowed"
-                  }
-                >
-                  Join Now
-                </button>
+                <h3 className="text-xl font-bold">
+                  Join: <span className="text-yellow-400">{t.title}</span>
+                </h3>
+
+                <div className="mt-4 text-sm text-zinc-300">
+                  Required info (later): <span className="text-white font-semibold">email, phone, name</span> + trading
+                  login details.
+                </div>
+
+                <div className="mt-4 flex items-start gap-2 text-sm text-zinc-300">
+                  <input
+                    id="agree"
+                    type="checkbox"
+                    checked={agree}
+                    onChange={(e) => setAgree(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <label htmlFor="agree">
+                    I agree to the <span className="text-yellow-400">tournament rules</span> and{" "}
+                    <span className="text-yellow-400">privacy policy</span>.
+                  </label>
+                </div>
+
+                <div className="mt-6 flex gap-3">
+                  <button
+                    onClick={() => setOpenJoin(false)}
+                    className="flex-1 border border-zinc-700 px-4 py-2 rounded-lg hover:bg-zinc-800"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    disabled={!agree}
+                    onClick={handleJoinNow}
+                    className={
+                      agree
+                        ? "flex-1 bg-yellow-500 text-black px-4 py-2 rounded-lg font-semibold"
+                        : "flex-1 bg-yellow-500/40 text-black/60 px-4 py-2 rounded-lg font-semibold cursor-not-allowed"
+                    }
+                  >
+                    Join Now
+                  </button>
+                </div>
+
+                <div className="mt-3 text-xs text-zinc-500">(Demo UI only — later we store data in DB.)</div>
               </div>
-
-              <div className="mt-3 text-xs text-zinc-500">(Demo UI only — later we store data in DB.)</div>
             </div>
-          </div>
-        )}
-        {openCreds && (
-  <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4">
-    <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6 relative">
-      <button
-        onClick={() => setOpenCreds(false)}
-        className="absolute right-4 top-4 text-zinc-400 hover:text-white"
-        aria-label="Close"
-      >
-        ✕
-      </button>
+          )}
 
-      <h3 className="text-xl font-bold">Submit Demo Account Details</h3>
-      <p className="mt-2 text-sm text-zinc-400">
-        Open your demo account first, then submit your <span className="text-white">view-only</span> credentials.
-      </p>
+          {/* Credentials Modal */}
+          {openCreds && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4">
+              <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6 relative">
+                <button
+                  onClick={() => setOpenCreds(false)}
+                  className="absolute right-4 top-4 text-zinc-400 hover:text-white"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
 
-      <div className="mt-5 space-y-3">
-        <div>
-          <label className="text-xs text-zinc-400">Platform (MT4/MT5)</label>
-          <input
-  value={platform}
-  onChange={(e) => setPlatform(e.target.value)}
-  className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
-  placeholder="MT5"
-/>
+                <h3 className="text-xl font-bold">Submit Trading Details</h3>
+                <p className="mt-2 text-sm text-zinc-400">
+                  Open your demo account first, then submit your <span className="text-white">view-only</span>{" "}
+                  credentials.
+                </p>
 
+                <div className="mt-5 space-y-3">
+                  <div>
+                    <label className="text-xs text-zinc-400">Platform (MT4/MT5)</label>
+                    <input
+                      value={platform}
+                      onChange={(e) => setPlatform(e.target.value)}
+                      className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
+                      placeholder="MT5"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-zinc-400">Login</label>
+                    <input
+                      value={login}
+                      onChange={(e) => setLogin(e.target.value)}
+                      className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
+                      placeholder="e.g. 12345678"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-zinc-400">Investor Password (view-only)</label>
+                    <input
+                      value={investorPassword}
+                      onChange={(e) => setInvestorPassword(e.target.value)}
+                      className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
+                      placeholder="View-only password"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-zinc-400">Server</label>
+                    <input
+                      value={server}
+                      onChange={(e) => setServer(e.target.value)}
+                      className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
+                      placeholder="e.g. Exness-MT5Real"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-6 flex gap-3">
+                  <button
+                    onClick={() => setOpenCreds(false)}
+                    className="flex-1 border border-zinc-700 px-4 py-2 rounded-lg hover:bg-zinc-800"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    disabled={!platform || !login || !investorPassword || !server}
+                    onClick={handleSubmitCredentials}
+                    className={
+                      !platform || !login || !investorPassword || !server
+                        ? "flex-1 bg-yellow-500/40 text-black/60 px-4 py-2 rounded-lg font-semibold cursor-not-allowed"
+                        : "flex-1 bg-yellow-500 text-black px-4 py-2 rounded-lg font-semibold"
+                    }
+                  >
+                    Submit
+                  </button>
+                </div>
+
+                <div className="mt-3 text-xs text-zinc-500">
+                  Note: We only accept <span className="text-white">view-only</span> credentials (Investor password).
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-
-        <div>
-  <label className="text-xs text-zinc-400">Login</label>
-  <input
-    value={login}
-    onChange={(e) => setLogin(e.target.value)}
-    className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
-    placeholder="e.g. 12345678"
-  />
-</div>
-
-
-        <div>
-  <label className="text-xs text-zinc-400">Investor Password (view-only)</label>
-  <input
-    value={investorPassword}
-    onChange={(e) => setInvestorPassword(e.target.value)}
-    className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
-    placeholder="View-only password"
-  />
-</div>
-
-
-        <div>
-  <label className="text-xs text-zinc-400">Server</label>
-  <input
-    value={server}
-    onChange={(e) => setServer(e.target.value)}
-    className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
-    placeholder="e.g. Exness-MT5Real"
-  />
-</div>
-
-      </div>
-
-      <div className="mt-6 flex gap-3">
-        <button
-          onClick={() => setOpenCreds(false)}
-          className="flex-1 border border-zinc-700 px-4 py-2 rounded-lg hover:bg-zinc-800"
-        >
-          Cancel
-        </button>
-
-   <button
-  disabled={!platform || !login || !investorPassword || !server}
-  onClick={handleSubmitCredentials}
-  className={
-    !platform || !login || !investorPassword || !server
-      ? "flex-1 bg-yellow-500/40 text-black/60 px-4 py-2 rounded-lg font-semibold cursor-not-allowed"
-      : "flex-1 bg-yellow-500 text-black px-4 py-2 rounded-lg font-semibold"
-  }
->
-
-  Submit
-</button>
-
-      </div>
-
-      <div className="mt-3 text-xs text-zinc-500">
-        Note: We only accept <span className="text-white">view-only</span> credentials (Investor password).
-      </div>
-    </div>
-  </div>
-)}
-
       </div>
     </main>
   );
