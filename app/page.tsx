@@ -1,11 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
-
+import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import Next7DaysFromDb from "@/app/components/home/Next7DaysFromDb";
 import { supabase } from "@/lib/supabase/client";
 import VerifyEmailBanner from "@/app/components/VerifyEmailBanner";
+
 
 type Tournament = {
   id: string;
@@ -295,7 +295,9 @@ const liveId: string | undefined = undefined;
   return (
   <main className="min-h-screen bg-black text-white">
     
-    <VerifyEmailBanner />
+    <Suspense fallback={null}>
+  <VerifyEmailBanner />
+</Suspense>
 
     {/* HERO (full width feel + cleaner spacing) */}
 <section className="max-w-7xl mx-auto px-6 pt-8 pb-16">
