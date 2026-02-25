@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 
 type TournamentRow = {
   id: string;
@@ -181,18 +181,18 @@ export default function AdminTournamentEditPage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-[70vh] px-6 py-10 text-neutral-200">
-        <div className="max-w-3xl mx-auto">
-          <p className="opacity-70">Loading tournament…</p>
-        </div>
+  return (
+    <main className="min-h-screen bg-black text-white">
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <p className="text-zinc-400">Loading tournament…</p>
       </div>
-    );
-  }
+    </main>
+  );
+}
 
   return (
-    <div className="min-h-[70vh] px-6 py-10 text-neutral-100">
-      <div className="max-w-3xl mx-auto">
+  <main className="min-h-screen bg-black text-white">
+    <div className="mx-auto max-w-3xl px-6 py-10">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <Link href="/admin/tournaments" className="text-amber-400 hover:underline">
@@ -219,8 +219,7 @@ export default function AdminTournamentEditPage() {
 
         <form
           onSubmit={onSave}
-          className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-[0_0_50px_rgba(0,0,0,0.35)]"
-        >
+className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-[0_0_60px_rgba(0,0,0,0.55)]"        >
           <div className="grid gap-4">
             <div>
               <label className="text-sm text-neutral-300">Title</label>
@@ -335,7 +334,7 @@ export default function AdminTournamentEditPage() {
         <div className="mt-4 text-xs text-neutral-500">
           Tournament ID: <span className="text-neutral-300">{safeId}</span>
         </div>
-      </div>
-    </div>
+            </div>
+    </main>
   );
 }

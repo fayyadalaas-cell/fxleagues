@@ -10,7 +10,10 @@ export default async function Page({
   searchParams?: Promise<{ next?: string }>;
 }) {
   const sp = (await searchParams) ?? {};
-  const nextUrl = typeof sp.next === "string" && sp.next.length > 0 ? sp.next : "/";
+
+  // ✅ بدل ما يكون الافتراضي "/" خلّيه account
+  const nextUrl =
+    typeof sp.next === "string" && sp.next.length > 0 ? sp.next : "/account";
 
   // ✅ إذا المستخدم مسجل دخول بالفعل، حوله مباشرة
   const supabase = await createClient();

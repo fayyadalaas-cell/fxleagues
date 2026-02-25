@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import React, { useState } from "react";
-import { supabase } from "../../lib/supabase/client";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase/client";
 
 export default function SignInClient({ nextUrl = "/" }: { nextUrl?: string }) {
+  const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -23,30 +26,38 @@ export default function SignInClient({ nextUrl = "/" }: { nextUrl?: string }) {
     setLoading(false);
 
     if (error) {
+      // مثال: Email not confirmed
       setErrorMsg(error.message);
       return;
     }
 
-    if (data.session && data.user) {
-      const { data: existingProfile } = await supabase
+    // ✅ إذا ما فيه session (أحياناً لو الإيميل مش مفعّل) نوضح للمستخدم
+    if (!data.session) {
+      setErrorMsg("Please verify your email first, then try signing in again.");
+      return;
+    }
+
+    // ✅ لا نخلّي فشل profiles يوقف تسجيل الدخول
+    if (data.user) {
+      const { data: existingProfile, error: profErr } = await supabase
         .from("profiles")
         .select("id")
         .eq("id", data.user.id)
         .maybeSingle();
 
-      if (!existingProfile) {
+      if (!profErr && !existingProfile) {
         await supabase.from("profiles").insert({
           id: data.user.id,
           full_name: data.user.user_metadata?.full_name || null,
         });
       }
-
-      const target =
-        nextUrl && nextUrl !== "/" ? nextUrl : "/admin";
-
-      // Reload كامل يثبت الجلسة 100%
-      window.location.assign(target);
     }
+
+    // ✅ التحويل الصحيح: إذا nextUrl موجود استخدمه، غير هيك روح /account (مش /admin)
+    const target = nextUrl && nextUrl !== "/" ? nextUrl : "/account";
+
+    // الأفضل مع Next: push + refresh بدل assign
+    window.location.href = target;
   }
 
   return (
@@ -82,9 +93,7 @@ export default function SignInClient({ nextUrl = "/" }: { nextUrl?: string }) {
             />
           </div>
 
-          {errorMsg && (
-            <div className="text-red-500 text-sm">{errorMsg}</div>
-          )}
+          {errorMsg && <div className="text-red-500 text-sm">{errorMsg}</div>}
 
           <button
             disabled={loading}
@@ -97,9 +106,7 @@ export default function SignInClient({ nextUrl = "/" }: { nextUrl?: string }) {
         <div className="text-sm text-zinc-400 mt-4">
           Don&apos;t have an account?{" "}
           <Link
-            href={`/signup?next=${encodeURIComponent(
-              nextUrl || "/"
-            )}`}
+            href={`/signup?next=${encodeURIComponent(nextUrl || "/")}`}
             className="text-yellow-400 hover:underline"
           >
             Create one

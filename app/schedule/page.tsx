@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { fetchTournaments, type TournamentDB } from "@/lib/tournaments";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 
 type TournamentRow = {
   id: string;

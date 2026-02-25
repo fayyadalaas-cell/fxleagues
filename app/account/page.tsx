@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../providers";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase } from "../../lib/supabase/client";
 
 type Profile = {
   id: string;

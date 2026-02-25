@@ -30,7 +30,10 @@ export default function NewTournamentPage() {
   const [entry, setEntry] = useState("FREE");
 
   const [sponsorName, setSponsorName] = useState("");
-  const [sponsorKey, setSponsorKey] = useState("");
+  const [sponsorKey, setSponsorKey] = useState(""); // لسا موجود عشان ما نخرب أي شيء عندك
+  const [sponsorLogoUrl, setSponsorLogoUrl] = useState("");
+  const [demoSignupUrl, setDemoSignupUrl] = useState("");
+  const [platformDownloadUrl, setPlatformDownloadUrl] = useState("");
 
   const [loading, setLoading] = useState(false);
 
@@ -42,9 +45,9 @@ export default function NewTournamentPage() {
     return (input || "")
       .trim()
       .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, "") // remove weird chars
-      .replace(/\s+/g, "-") // spaces -> dashes
-      .replace(/-+/g, "-") // multiple dashes -> one
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
       .replace(/^-+|-+$/g, "");
   }
 
@@ -142,7 +145,10 @@ export default function NewTournamentPage() {
       entry,
 
       sponsor_name: sponsorName.trim() || null,
-      sponsor_logo_key: sponsorKey.trim() || null,
+      sponsor_logo_key: sponsorKey.trim() || null, // كما هو
+      sponsor_logo_url: sponsorLogoUrl.trim() || null,
+      demo_signup_url: demoSignupUrl.trim() || null,
+      platform_download_url: platformDownloadUrl.trim() || null,
 
       winners_count: wc,
       prize_breakdown: cleanedBreakdown,
@@ -231,30 +237,67 @@ export default function NewTournamentPage() {
             />
           </div>
 
-          {/* Sponsor fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input
-              className="bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-lg"
-              placeholder="Sponsor name (e.g. Exness)"
-              value={sponsorName}
-              onChange={(e) => setSponsorName(e.target.value)}
-            />
+          {/* Sponsor Settings */}
+          <div className="mt-2 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+            <div className="text-sm font-semibold mb-4">Sponsor Settings</div>
 
-            <input
-              className="bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-lg"
-              placeholder="Sponsor logo key (exness / icmarkets / ...)"
-              value={sponsorKey}
-              onChange={(e) => setSponsorKey(e.target.value)}
-              list="sponsor-keys"
-            />
-            <datalist id="sponsor-keys">
-              <option value="exness" />
-              <option value="icmarkets" />
-              <option value="vantage" />
-              <option value="fxleagues" />
-              <option value="binance" />
-              <option value="fxtm" />
-            </datalist>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input
+                className="bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-lg"
+                placeholder="Sponsor name (e.g. XM)"
+                value={sponsorName}
+                onChange={(e) => setSponsorName(e.target.value)}
+              />
+
+              <input
+                className="bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-lg"
+                placeholder="Sponsor logo URL (https://...)"
+                value={sponsorLogoUrl}
+                onChange={(e) => setSponsorLogoUrl(e.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <input
+                className="bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-lg"
+                placeholder="Demo account signup URL (https://...)"
+                value={demoSignupUrl}
+                onChange={(e) => setDemoSignupUrl(e.target.value)}
+              />
+
+              <input
+                className="bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-lg"
+                placeholder="Platform download URL (https://...)"
+                value={platformDownloadUrl}
+                onChange={(e) => setPlatformDownloadUrl(e.target.value)}
+              />
+            </div>
+
+            <div className="mt-3 text-xs text-zinc-500">
+              هذه الروابط ستظهر في صفحة تفاصيل المسابقة للمشتركين.
+            </div>
+
+            {/* Optional: keep sponsorKey here but hidden-ish to not confuse */}
+            <div className="mt-4">
+              <input
+                className="bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-lg w-full"
+                placeholder="Sponsor logo key (optional / legacy)"
+                value={sponsorKey}
+                onChange={(e) => setSponsorKey(e.target.value)}
+                list="sponsor-keys"
+              />
+              <datalist id="sponsor-keys">
+                <option value="exness" />
+                <option value="icmarkets" />
+                <option value="vantage" />
+                <option value="fxleagues" />
+                <option value="binance" />
+                <option value="fxtm" />
+              </datalist>
+              <div className="mt-2 text-[11px] text-zinc-500">
+                (اختياري) موجود فقط عشان ما نخرب أي جزء قديم عندك يعتمد على logo key.
+              </div>
+            </div>
           </div>
 
           {/* Entry / Type / Status */}
@@ -297,7 +340,11 @@ export default function NewTournamentPage() {
                 <div className="text-sm font-semibold">Prize Breakdown</div>
                 <div className="mt-1 text-xs text-zinc-400">
                   Total:{" "}
-                  <span className={breakdownSum > (Number(prize || 0) || 0) ? "text-red-300" : "text-zinc-200"}>
+                  <span
+                    className={
+                      breakdownSum > (Number(prize || 0) || 0) ? "text-red-300" : "text-zinc-200"
+                    }
+                  >
                     ${breakdownSum.toFixed(0)}
                   </span>{" "}
                   / Prize pool: <span className="text-zinc-200">${Number(prize || 0).toFixed(0)}</span>
@@ -338,9 +385,7 @@ export default function NewTournamentPage() {
               ))}
             </div>
 
-            <div className="mt-3 text-[11px] text-zinc-500">
-              اكتب الجوائز يدويًا. الواجهة العامة رح تعرضها مثل ما هي.
-            </div>
+            <div className="mt-3 text-[11px] text-zinc-500">اكتب الجوائز يدويًا. الواجهة العامة رح تعرضها مثل ما هي.</div>
           </div>
 
           <button

@@ -7,13 +7,16 @@ import AuthButtons from "./AuthButtons";
 export const metadata: Metadata = {
   title: "FX Leagues",
   description: "Competitive trading tournaments and performance leaderboards.",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-zinc-900/70 bg-black/70 backdrop-blur">
-      <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-        {/* Logo */}
+<div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">        {/* Logo */}
         <Link href="/" className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl border border-zinc-800 bg-zinc-900/40 flex items-center justify-center">
             <div className="h-2 w-2 rounded-full bg-yellow-400" />
@@ -27,7 +30,7 @@ function Navbar() {
         {/* Desktop Menu */}
         <nav className="hidden md:flex items-center gap-6 text-sm text-zinc-300">
           <Link href="/schedule" className="hover:text-white">Schedule</Link>
-          <Link href="/leaderboards" className="hover:text-white">Leaderboards</Link>
+          <Link href="/winners" className="hover:text-white">Winners</Link>
           <Link href="/brokers" className="hover:text-white">Brokers</Link>
           <Link href="/how-it-works" className="hover:text-white">How it works</Link>
           <Link href="/#sponsors" className="hover:text-white">Sponsors</Link>
@@ -66,8 +69,7 @@ function Footer() {
             <div className="text-sm font-semibold mb-3 text-white">Platform</div>
             <div className="flex flex-col gap-2 text-sm text-zinc-300">
               <Link href="/schedule" className="hover:text-white transition">Schedule</Link>
-              <Link href="/leaderboards" className="hover:text-white transition">Leaderboards</Link>
-              <Link href="/how-it-works" className="hover:text-white transition">How it works</Link>
+              <Link href="/winners" className="hover:text-white transition">Winners</Link>              <Link href="/how-it-works" className="hover:text-white transition">How it works</Link>
               <Link href="/brokers" className="hover:text-white transition">Brokers</Link>
             </div>
           </div>

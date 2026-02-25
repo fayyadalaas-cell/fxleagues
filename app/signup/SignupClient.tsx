@@ -3,34 +3,32 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase } from "../../lib/supabase/client";
 
 export default function SignupClient({ nextUrl }: { nextUrl: string }) {
   const router = useRouter();
 
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");   // ✅ NEW
+  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErrorMsg(null);
-    setSuccessMsg(null);
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { 
-        data: { 
+      options: {
+        data: {
           full_name: name,
-          phone: phone   // ✅ NEW
-        } 
+          phone: phone,
+        },
       },
     });
 
@@ -41,14 +39,10 @@ export default function SignupClient({ nextUrl }: { nextUrl: string }) {
       return;
     }
 
-    if (data.session) {
-      router.push(nextUrl || "/");
-      return;
-    }
-
-    setSuccessMsg(
-      "Account created. Please check your email to confirm your account, then sign in."
-    );
+    // ✅ دخول الموقع مباشرة مع باراميتر التحقق
+    const redirectUrl = (nextUrl || "/") + "?verify=1";
+router.push("/verify-email");
+router.refresh();
   }
 
   return (
@@ -64,7 +58,6 @@ export default function SignupClient({ nextUrl }: { nextUrl: string }) {
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          
           <div>
             <label className="text-sm text-zinc-300">Full Name</label>
             <input
@@ -75,7 +68,6 @@ export default function SignupClient({ nextUrl }: { nextUrl: string }) {
             />
           </div>
 
-          {/* ✅ PHONE FIELD */}
           <div>
             <label className="text-sm text-zinc-300">Phone</label>
             <input
@@ -110,9 +102,8 @@ export default function SignupClient({ nextUrl }: { nextUrl: string }) {
             />
           </div>
 
-          {errorMsg && <div className="text-red-500 text-sm">{errorMsg}</div>}
-          {successMsg && (
-            <div className="text-green-400 text-sm">{successMsg}</div>
+          {errorMsg && (
+            <div className="text-red-500 text-sm">{errorMsg}</div>
           )}
 
           <button

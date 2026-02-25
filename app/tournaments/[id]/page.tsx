@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 
 type Row = {
   rank: number;
@@ -27,6 +27,9 @@ type DbTournament = {
   prize_breakdown?: any[] | null;
   created_at: string;
   slug: string | null;
+  demo_signup_url?: string | null;
+  platform_download_url?: string | null;
+  sponsor_logo_url?: string | null;
 
   status?: string | null; // LIVE / UPCOMING / CLOSED
   type?: string | null; // Daily / Weekly / Monthly / Special
@@ -49,16 +52,16 @@ function formatDateTime(ts: string | null) {
 
 function logoPathFromKey(key?: string | null) {
   const k = (key || "").toLowerCase();
+
   const map: Record<string, string> = {
     exness: "/brokers/exness.png",
-    fxleagues: "/brokers/fxleagues.png",
     icmarkets: "/brokers/icmarkets.png",
-    binance: "/brokers/binance.png",
-    fxm: "/brokers/fxtm.png",
     fxtm: "/brokers/fxtm.png",
+    fxm: "/brokers/fxtm.png",
     vantage: "/brokers/vantage.png",
   };
-  return map[k] || "";
+
+  return map[k] || "/brokers/exness.png"; // fallback افتراضي
 }
 
 type RegStage = "not_joined" | "joined" | "pending_review" | "approved" | "rejected";
@@ -106,10 +109,8 @@ function buildFallbackPrizes(prizePool: number, winnersCount: number) {
 
 export default function TournamentDetailsPage() {
   const router = useRouter();
-  const params = useParams<{ id: string }>();
-
-  const rawId = params?.id ?? "";
-  const slug = rawId;
+  const params = useParams();
+  const slug = (params?.id as string) ?? "";
 
   const [tab, setTab] = useState<Tab>("overview");
 
@@ -133,6 +134,40 @@ export default function TournamentDetailsPage() {
   const [investorPassword, setInvestorPassword] = useState("");
   const [server, setServer] = useState("");
   const [credentialsSubmitted, setCredentialsSubmitted] = useState(false);
+    // ✅ Refresh join/status from DB (single source of truth)
+  async function refreshRegistration(tournamentId: string) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      setAlreadyJoined(false);
+      setRegistrationStatus(null);
+      setCredentialsSubmitted(false);
+      return;
+    }
+
+    // joined?
+    const { data: reg } = await supabase
+      .from("tournament_registrations")
+      .select("id,status,details_submitted")
+      .eq("tournament_id", tournamentId)
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+
+    setAlreadyJoined(!!reg);
+    setRegistrationStatus((reg as any)?.status ?? null);
+
+    // credentials submitted?
+    const { data: creds } = await supabase
+      .from("tournament_credentials")
+      .select("id")
+      .eq("tournament_id", tournamentId)
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+
+    setCredentialsSubmitted(!!creds);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -144,8 +179,8 @@ export default function TournamentDetailsPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "id,title,description,start_date,end_date,prize_pool,created_at,slug,status,type,sponsor_name,sponsor_logo_key,entry,winners_count,prize_breakdown"
-        )
+  "id,title,description,start_date,end_date,prize_pool,created_at,slug,status,type,sponsor_name,sponsor_logo_key,sponsor_logo_url,entry,winners_count,prize_breakdown,demo_signup_url,platform_download_url"
+)
         .eq("slug", slug)
         .limit(1)
         .maybeSingle();
@@ -301,8 +336,7 @@ export default function TournamentDetailsPage() {
     }
 
     alert("Successfully registered!");
-    setAlreadyJoined(true);
-    setRegistrationStatus("joined_pending");
+    await refreshRegistration(t.id);
     setOpenJoin(false);
     setParticipantsCount((c) => c + 1);
   }
@@ -440,12 +474,18 @@ export default function TournamentDetailsPage() {
     },
   };
 
-  const platformInfo =
-    platformLinks[sponsorKey] || {
-      platformName: "Trading Platform",
-      downloadUrl: "#",
-      demoSignupUrl: "#",
-    };
+  const platformInfo = {
+  platformName:
+    sponsorKey === "exness"
+      ? "MetaTrader 5 (Exness)"
+      : sponsorKey === "icmarkets"
+      ? "MetaTrader 5 (IC Markets)"
+      : sponsorKey === "vantage"
+      ? "MetaTrader 5 (Vantage)"
+      : "MetaTrader 5",
+  downloadUrl: t.platform_download_url || platformLinks[sponsorKey]?.downloadUrl || "#",
+  demoSignupUrl: t.demo_signup_url || platformLinks[sponsorKey]?.demoSignupUrl || "#",
+};
 
   const LEVERAGE = "1:100";
   const STARTING_BALANCE = "$10,000";
@@ -453,11 +493,11 @@ export default function TournamentDetailsPage() {
   const stage = getStage(alreadyJoined, registrationStatus);
 
   const steps = [
-    { key: "download", title: "Download Platform" },
-    { key: "demo", title: "Create Demo Account" },
-    { key: "submit", title: "Submit Trading Details" },
-    { key: "review", title: "Wait for Approval" },
-  ] as const;
+  { key: "download", title: "Download Platform", action: "download" },
+  { key: "demo", title: "Create Demo Account", action: "demo" },
+  { key: "submit", title: "Submit Trading Details", action: "submit" },
+  { key: "review", title: "Wait for Approval", action: "review" },
+] as const;
 
   function stepDone(key: (typeof steps)[number]["key"]) {
     if (stage === "not_joined") return false;
@@ -508,77 +548,95 @@ export default function TournamentDetailsPage() {
                 ← Back to Schedule
               </Link>
 
-              <div className="flex items-center gap-3 mt-5">
-                <div className="leading-tight min-w-0">
-                  <h1 className="text-4xl font-extrabold truncate">
-                    {t.title} <span className="text-yellow-400">Details</span>
-                  </h1>
+              <div className="flex items-center gap-4 mt-5">
+  {(t.sponsor_logo_url || sponsorKey) && (
+  <img
+    src={
+      t.sponsor_logo_url &&
+      (t.sponsor_logo_url.startsWith("http") ||
+        t.sponsor_logo_url.startsWith("/"))
+        ? t.sponsor_logo_url
+        : logoPathFromKey(sponsorKey)
+    }
+    alt={sponsorName || "Sponsor"}
+    className="h-12 w-auto object-contain rounded-lg bg-white p-1"
+  />
+)}
 
-                  {t.description ? <p className="text-zinc-400 mt-1 line-clamp-2">{t.description}</p> : null}
-                </div>
-              </div>
+  <div className="leading-tight min-w-0">
+    <h1 className="text-4xl font-extrabold truncate">
+      {t.title} <span className="text-yellow-400">Details</span>
+    </h1>
+
+    {t.description ? (
+      <p className="text-zinc-400 mt-1 line-clamp-2">{t.description}</p>
+    ) : null}
+  </div>
+</div>
             </div>
 
             {/* Right actions */}
-            <div className="mt-2 flex flex-wrap items-center justify-start md:justify-end gap-2">
-              <button
-                onClick={() => alert("Rules popup later")}
-                className="h-10 rounded-xl border border-zinc-700 bg-black/20 px-4 text-sm font-semibold text-white hover:bg-zinc-900"
-              >
-                Rules
-              </button>
+<div className="mt-2 grid grid-cols-2 gap-2 w-full md:w-auto md:min-w-[360px] md:justify-end">
+  <button
+    onClick={() => alert("Rules popup later")}
+    className="h-10 w-full rounded-xl border border-zinc-700 bg-black/20 px-4 text-sm font-semibold text-white hover:bg-zinc-900"
+  >
+    Rules
+  </button>
 
-              {alreadyJoined && (
-                <div
-                  className={
-                    "h-10 inline-flex items-center rounded-xl px-4 text-sm font-semibold border " +
-                    (registrationStatus === "approved"
-                      ? "border-emerald-700/50 bg-emerald-950/30 text-emerald-200"
-                      : registrationStatus === "rejected"
-                      ? "border-red-700/50 bg-red-950/30 text-red-200"
-                      : "border-yellow-700/50 bg-yellow-950/20 text-yellow-200")
-                  }
-                >
-                  Status:&nbsp;
-                  <span className="font-bold">{registrationStatus || "joined_pending"}</span>
-                </div>
-              )}
+  {alreadyJoined ? (
+    <div
+      className={
+        "h-10 w-full inline-flex items-center justify-center rounded-xl px-4 text-sm font-semibold border " +
+        (registrationStatus === "approved"
+          ? "border-emerald-700/50 bg-emerald-950/30 text-emerald-200"
+          : registrationStatus === "rejected"
+          ? "border-red-700/50 bg-red-950/30 text-red-200"
+          : "border-yellow-700/50 bg-yellow-950/20 text-yellow-200")
+      }
+    >
+      Status:&nbsp;
+      <span className="font-bold">{registrationStatus || "joined_pending"}</span>
+    </div>
+  ) : (
+    <div className="h-10 w-full" />
+  )}
 
-              {alreadyJoined ? (
-                <div className="h-10 inline-flex items-center rounded-xl border border-zinc-700 bg-zinc-900/40 px-4 text-sm font-semibold text-zinc-200">
-                  Joined
-                </div>
-              ) : (
-                <button
-                  disabled={status === "CLOSED"}
-                  onClick={handleOpenJoin}
-                  className={
-                    "h-10 rounded-xl px-5 text-sm font-semibold " +
-                    (status === "CLOSED"
-                      ? "cursor-not-allowed bg-zinc-700 text-zinc-300"
-                      : "bg-yellow-500 text-black hover:brightness-95")
-                  }
-                >
-                  {status === "CLOSED" ? "Closed" : "Join Tournament"}
-                </button>
-              )}
+  {alreadyJoined ? (
+    <div className="h-10 w-full inline-flex items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/40 px-4 text-sm font-semibold text-zinc-200">
+      Joined
+    </div>
+  ) : (
+    <button
+      disabled={status === "CLOSED"}
+      onClick={handleOpenJoin}
+      className={
+        "h-10 w-full rounded-xl px-5 text-sm font-semibold " +
+        (status === "CLOSED"
+          ? "cursor-not-allowed bg-zinc-700 text-zinc-300"
+          : "bg-yellow-500 text-black hover:brightness-95")
+      }
+    >
+      {status === "CLOSED" ? "Closed" : "Join Tournament"}
+    </button>
+  )}
 
-              {alreadyJoined && !credentialsSubmitted && status !== "CLOSED" && (
-                <button
-                  onClick={() => setOpenCreds(true)}
-                  className="h-10 rounded-xl border border-zinc-700 bg-black/20 px-4 text-sm font-semibold text-white hover:bg-zinc-900"
-                >
-                  Submit Trading Details
-                </button>
-              )}
-
-              {alreadyJoined && credentialsSubmitted && (
-                <div className="h-10 inline-flex items-center rounded-xl border border-zinc-700 bg-zinc-900/40 px-4 text-sm font-semibold text-zinc-300">
-                  Submitted
-                </div>
-              )}
-            </div>
-          </div>
+  {alreadyJoined && !credentialsSubmitted && status !== "CLOSED" ? (
+    <button
+      onClick={() => setOpenCreds(true)}
+      className="h-10 w-full rounded-xl border border-zinc-700 bg-black/20 px-4 text-sm font-semibold text-white hover:bg-zinc-900"
+    >
+      Submit Trading Details
+    </button>
+  ) : alreadyJoined && credentialsSubmitted ? (
+    <div className="h-10 w-full inline-flex items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/40 px-4 text-sm font-semibold text-zinc-300">
+      Submitted
+    </div>
+  ) : (
+    <div className="h-10 w-full" />
+  )}
+  </div>
+</div>
 
           {/* Stats row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
@@ -637,29 +695,88 @@ export default function TournamentDetailsPage() {
                     key={s.key}
                     className={
                       "group rounded-2xl p-5 transition-all duration-200 min-h-[110px] " +
-                      (done
-                        ? "border border-emerald-700/30 bg-emerald-950/15 hover:bg-emerald-950/25"
+                      (done || (s.key === "review" && stage === "approved")
+  ? "border border-emerald-700/40 bg-emerald-950/25 hover:bg-emerald-950/35"
                         : current
                         ? "border border-yellow-700/50 bg-yellow-950/15 shadow-[0_0_0_1px_rgba(234,179,8,0.10),0_16px_40px_rgba(0,0,0,0.55)] hover:bg-yellow-950/25"
                         : "border border-zinc-800 bg-black/20 hover:bg-zinc-950/40 hover:border-zinc-700")
                     }
                   >
                     <div className="flex items-center justify-between">
-                      <div className="text-xs text-zinc-400">Step {idx + 1}</div>
-                      <div className="text-xs">{done ? "✅" : current ? "👉" : ""}</div>
-                    </div>
+  <div className="text-xs text-zinc-400">Step {idx + 1}</div>
+  <div className="text-xs">{done ? "✅" : current ? "👉" : ""}</div>
+</div>
 
-                    <div className="mt-2 text-base font-bold">{s.title}</div>
+<div className="mt-2 text-base font-bold">{s.title}</div>
 
-                    {s.key === "submit" && stage === "joined" && (
-                      <div className="mt-2 text-xs text-zinc-400">
-                        Use <span className="text-white">Submit Trading Details</span> button above.
-                      </div>
-                    )}
+{/* 🔥 Badge خاص بـ Step 4 */}
+{s.key === "review" && (
+  <div
+    className={
+      "mt-3 inline-flex w-full items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold border " +
+      (stage === "approved"
+        ? "border-emerald-700/40 bg-emerald-950/30 text-emerald-200"
+        : stage === "rejected"
+        ? "border-red-700/40 bg-red-950/30 text-red-200"
+        : "border-yellow-700/40 bg-yellow-950/20 text-yellow-200")
+    }
+  >
+    {stage === "approved"
+      ? "Approved"
+      : stage === "rejected"
+      ? "Rejected"
+      : "Pending Approval"}
+  </div>
+)}
 
-                    {s.key === "review" && stage === "pending_review" && (
-                      <div className="mt-2 text-xs text-zinc-400">We’ll approve you shortly.</div>
-                    )}
+{/* ⬇️ بعدها يجي زر download/demo */}
+{(s.action === "download" || s.action === "demo") && (
+  <a
+    href={
+      s.action === "download"
+        ? platformInfo?.downloadUrl || "#"
+        : platformInfo?.demoSignupUrl || "#"
+    }
+    target="_blank"
+    rel="noreferrer"
+    className={
+      "mt-3 inline-flex w-full items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold " +
+      (stage === "not_joined"
+        ? "cursor-not-allowed pointer-events-none opacity-40 border border-zinc-800 bg-black/20 text-zinc-200"
+        : "bg-yellow-500 text-black hover:brightness-95")
+    }
+  >
+    {s.action === "download" ? "Download" : "Open Demo Account"}
+  </a>
+)}
+
+{s.key === "submit" && (
+  <button
+    type="button"
+    onClick={() => setOpenCreds(true)}
+    className={
+      "mt-3 inline-flex w-full items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold " +
+      (!alreadyJoined || status === "CLOSED"
+        ? "cursor-not-allowed pointer-events-none opacity-40 border border-zinc-800 bg-black/20 text-zinc-200"
+        : credentialsSubmitted
+        ? "cursor-not-allowed pointer-events-none opacity-60 border border-zinc-700 bg-zinc-900/40 text-zinc-300"
+        : "bg-yellow-500 text-black hover:brightness-95")
+    }
+  >
+    {credentialsSubmitted ? "Submitted" : "Submit Details"}
+  </button>
+)}
+
+                    {s.key === "review" && (
+  <div className="mt-2 text-xs text-zinc-400">
+    {stage === "approved"
+      ? "Approved ✅ You’re ready to trade."
+      : stage === "rejected"
+      ? "Rejected ❌ Please resubmit your details."
+      : "We’ll approve you shortly."}
+  </div>
+)}
+
                   </div>
                 );
               })}
@@ -714,55 +831,54 @@ export default function TournamentDetailsPage() {
           </div>
 
           {/* Steps cards */}
-          {alreadyJoined && (
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-                <div className="text-xs text-zinc-400">Step 1</div>
-                <div className="mt-2 text-lg font-bold">Download Platform</div>
-                <div className="mt-1 text-sm text-zinc-400">{platformInfo.platformName}</div>
+<div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+  <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+    <div className="text-xs text-zinc-400">Step 1</div>
+    <div className="mt-2 text-lg font-bold">Download Platform</div>
+    <div className="mt-1 text-sm text-zinc-400">{platformInfo.platformName}</div>
 
-                <a
-                  href={platformInfo.downloadUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-yellow-500 px-4 py-3 text-sm font-semibold text-black hover:brightness-95"
-                >
-                  Download
-                </a>
-              </div>
+    <a
+      href={platformInfo.downloadUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-yellow-500 px-4 py-3 text-sm font-semibold text-black hover:brightness-95"
+    >
+      Download
+    </a>
+  </div>
 
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-                <div className="text-xs text-zinc-400">Step 2</div>
-                <div className="mt-2 text-lg font-bold">Create Demo Account</div>
-                <div className="mt-1 text-sm text-zinc-400">Open demo account with sponsor</div>
+  <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+    <div className="text-xs text-zinc-400">Step 2</div>
+    <div className="mt-2 text-lg font-bold">Create Demo Account</div>
+    <div className="mt-1 text-sm text-zinc-400">Open demo account with sponsor</div>
 
-                <a
-                  href={platformInfo.demoSignupUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-zinc-700 bg-black/30 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-900"
-                >
-                  Open Demo Signup
-                </a>
-              </div>
+    <a
+      href={platformInfo.demoSignupUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-zinc-700 bg-black/30 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-900"
+    >
+      Open Demo Signup
+    </a>
+  </div>
 
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-                <div className="text-xs text-zinc-400">Contest Rules</div>
+  <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+    <div className="text-xs text-zinc-400">Contest Rules</div>
 
-                <div className="mt-3 text-sm text-zinc-300">
-                  <div>
-                    Leverage: <span className="text-white font-semibold">{LEVERAGE}</span>
-                  </div>
-                  <div className="mt-1">
-                    Starting Balance: <span className="text-white font-semibold">{STARTING_BALANCE}</span>
-                  </div>
-                </div>
+    <div className="mt-3 text-sm text-zinc-300">
+      <div>
+        Leverage: <span className="text-white font-semibold">{LEVERAGE}</span>
+      </div>
+      <div className="mt-1">
+        Starting Balance: <span className="text-white font-semibold">{STARTING_BALANCE}</span>
+      </div>
+    </div>
 
-                <div className="mt-4 text-xs text-zinc-500">Use investor password only. No real trading required.</div>
-              </div>
-            </div>
-          )}
-
+    <div className="mt-4 text-xs text-zinc-500">
+      Use investor password only. No real trading required.
+    </div>
+  </div>
+</div>
           {/* Tabs */}
           <div className="mt-10 flex gap-2">
             <TabButton value="overview" label="Overview" />

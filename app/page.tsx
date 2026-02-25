@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import Next7DaysFromDb from "@/app/components/home/Next7DaysFromDb";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
+import VerifyEmailBanner from "@/app/components/VerifyEmailBanner";
 
 type Tournament = {
   id: string;
@@ -25,6 +26,16 @@ type LeaderRow = {
   profit: number;
   maxDD: number;
   trades: number;
+};
+
+type ChampionRow = {
+  id: string;
+  title: string;
+  winner_name: string;
+  winner_profit: number | null;
+  winner_roi: number | null;
+  partner_name: string | null;
+  end_date: string | null;
 };
 
 const upcomingCards: Tournament[] = [
@@ -115,6 +126,36 @@ const leaderboardWeek: LeaderRow[] = [
   { rank: 5, trader: "LondonOpen", roi: 6.3, profit: 420, maxDD: 7.6, trades: 24 },
 ];
 
+const demoChampions: ChampionRow[] = [
+  {
+    id: "demo-1",
+    title: "Weekly Trade",
+    winner_name: "Trader_Alpha",
+    winner_profit: 1240,
+    winner_roi: 18.6,
+    partner_name: "FXLeagues",
+    end_date: "2026-02-10",
+  },
+  {
+    id: "demo-2",
+    title: "Monthly Trade",
+    winner_name: "MarketWolf",
+    winner_profit: 980,
+    winner_roi: 14.1,
+    partner_name: "VANTAGE FX",
+    end_date: "2026-02-03",
+  },
+  {
+    id: "demo-3",
+    title: "Daily Winner",
+    winner_name: "FX_King",
+    winner_profit: 710,
+    winner_roi: 10.9,
+    partner_name: "IC Markets",
+    end_date: "2026-01-28",
+  },
+];
+
 function money(n: number) {
   return n.toLocaleString("en-US");
 }
@@ -199,6 +240,9 @@ function parseMonthDayTime(dateLabel: string, timeLabel: string) {
 export default function HomePage() {
   const [nextTournament, setNextTournament] = useState<any>(null);
 const [loadingNext, setLoadingNext] = useState(true);
+  const [champions, setChampions] = useState<ChampionRow[]>([]);
+  const [loadingChampions, setLoadingChampions] = useState(true);
+  const displayedChampions = champions.length === 0 ? demoChampions : champions;
 useEffect(() => {
   async function fetchNextTournament() {
    const nowIso = new Date().toISOString();
@@ -223,6 +267,22 @@ setLoadingNext(false);
 
 fetchNextTournament();
 }, []);
+useEffect(() => {
+  async function fetchChampions() {
+    const { data, error } = await supabase
+      .from("tournaments")
+      .select("id, title, winner_name, winner_profit, winner_roi, partner_name, end_date")
+      .eq("status", "COMPLETED")
+      .not("winner_name", "is", null)
+      .order("end_date", { ascending: false })
+      .limit(3);
+
+    if (!error && data) setChampions(data as ChampionRow[]);
+    setLoadingChampions(false);
+  }
+
+  fetchChampions();
+}, []);
 
 const now = new Date();
 
@@ -233,14 +293,16 @@ const liveId: string | undefined = undefined;
 
 
   return (
-    <main className="min-h-screen bg-black text-white">
-      {/* HERO (full width feel + cleaner spacing) */}
-      <section className="max-w-6xl mx-auto px-6 pt-16 pb-10">
-        <div className="rounded-[28px] border border-zinc-900/80 bg-gradient-to-b from-zinc-950/70 to-black p-10 md:p-12 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+  <main className="min-h-screen bg-black text-white">
+    
+    <VerifyEmailBanner />
+
+    {/* HERO (full width feel + cleaner spacing) */}
+<section className="max-w-7xl mx-auto px-6 pt-8 pb-16">
+          <div className="w-full rounded-[28px] border border-zinc-800/90 ring-1 ring-white/5 bg-gradient-to-b from-zinc-950/80 via-zinc-950/60 to-black p-10 md:p-12 shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_30px_90px_rgba(0,0,0,0.85)]">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
             <div className="lg:col-span-8">
-              <h1 className="text-5xl md:text-6xl font-extrabold leading-[1.05] tracking-tight">
-                Compete. Climb ranks.{" "}
+<h1 className="text-5xl md:text-7xl font-extrabold leading-[1.05] tracking-tight">                Compete. Climb ranks.{" "}
                 <span className="text-yellow-400">Win prizes.</span>
               </h1>
 
@@ -268,12 +330,12 @@ const liveId: string | undefined = undefined;
                 >
                   Brokers
                 </Link>
-                <a
-                  href="#leaderboard"
-                  className="border border-zinc-700 px-5 py-3 rounded-lg hover:bg-zinc-900 transition"
-                >
-                  Leaderboard
-                </a>
+                <Link
+  href="/winners"
+  className="border border-zinc-700 px-5 py-3 rounded-lg hover:bg-zinc-900 transition"
+>
+  Winners
+</Link>
               </div>
 
               <div className="mt-8 flex flex-wrap gap-2">
@@ -294,7 +356,10 @@ const liveId: string | undefined = undefined;
 
             {/* Right side: compact “today snapshot” */}
             <div className="lg:col-span-4">
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-6">
+              <div className="relative overflow-hidden rounded-3xl border border-zinc-800 bg-gradient-to-b from-zinc-950/70 to-black p-6 shadow-xl">
+            <div className="pointer-events-none absolute -top-24 -right-24 h-56 w-56 rounded-full bg-yellow-500/10 blur-3xl" />
+<div className="pointer-events-none absolute -bottom-24 -left-24 h-56 w-56 rounded-full bg-white/5 blur-3xl" />
+
                 <div className="text-xs text-zinc-400">Next tournament</div>
                 <div className="mt-2 flex items-center justify-between gap-3">
                   <div className="text-lg font-bold">
@@ -355,32 +420,60 @@ ${money(nextTournament?.prize_pool ?? 0)}
         </div>
       </section>
 
-      {/* TRUSTED BROKERS STRIP (FIX: no drop to 2nd line on desktop) */}
-      <section className="max-w-6xl mx-auto px-6 pb-14">
-        <div className="rounded-2xl border border-zinc-900 bg-zinc-950/50 p-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-            <div>
-              <div className="text-sm font-semibold text-white">Trusted brokers</div>
-              <div className="text-xs text-zinc-400 mt-1">
-                Open a real or demo account — then join competitions faster.
-              </div>
-            </div>
+     {/* TRUSTED BROKERS STRIP (FIX: no drop to 2nd line on desktop) */}
+<section className="max-w-7xl mx-auto px-6 pt-1 pb-6">
+  <div
+    className="relative overflow-hidden rounded-3xl border border-zinc-800 
+               bg-gradient-to-b from-zinc-950/90 via-black to-black 
+               p-12 
+               shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_40px_120px_rgba(0,0,0,0.9)]"
+  >
+
+    {/* subtle glow */}
+    <div className="pointer-events-none absolute -top-40 -left-40 h-80 w-80 rounded-full bg-yellow-500/5 blur-3xl" />
+    <div className="pointer-events-none absolute -bottom-40 -right-40 h-80 w-80 rounded-full bg-yellow-500/5 blur-3xl" />
+
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+      
+      <div>
+        <div className="text-xl font-bold text-white tracking-tight">
+          Official Tournament Partners
+        </div>
+
+        <div className="text-sm text-zinc-400 mt-2 max-w-md leading-relaxed">
+          Trade with official partners and join competitions.
+        </div>
+
+        <div className="mt-4">
+          <Link
+            href="/sponsors"
+            className="inline-flex items-center gap-2 rounded-full border border-yellow-500/40 bg-yellow-500/10 px-4 py-2 text-sm font-semibold text-yellow-300
+                       hover:bg-yellow-500/15 hover:border-yellow-500/60 transition"
+          >
+            Become a Partner
+            <span className="text-yellow-300/70">→</span>
+          </Link>
+        </div>
+      </div>
 
             {/* ✅ تغيير صغير: grid بدل flex-wrap */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-center">
               {trustedBrokers.map((b) => (
                 <div
-                  key={b.name}
-                  className="h-14 rounded-2xl border border-zinc-800 bg-black/40 flex items-center justify-center px-5
-                             transition hover:bg-zinc-900/40 hover:border-zinc-700 hover:scale-[1.02]"
-                  title={b.name}
-                >
+  key={b.name}
+  className="h-24 rounded-3xl border border-zinc-700/80 bg-gradient-to-b from-zinc-900/60 to-black 
+             flex items-center justify-center px-10
+             transition-all duration-300 
+             hover:scale-[1.07] 
+             hover:border-yellow-500/60 
+             hover:shadow-[0_0_30px_rgba(234,179,8,0.15)]"
+>
                   <Image
                     src={b.logo}
                     alt={b.name}
                     width={160}
                     height={52}
-                    className="object-contain max-h-9 w-auto"
+                    className="object-contain max-h-12 w-auto"
                   />
                 </div>
               ))}
@@ -389,164 +482,75 @@ ${money(nextTournament?.prize_pool ?? 0)}
         </div>
       </section>
 
-      {/* UPCOMING CARDS */}
-      <section id="schedule" className="max-w-6xl mx-auto px-6 pb-16">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Upcoming tournaments</h2>
-          <Link href="/schedule" className="text-sm text-yellow-400 hover:underline">
-            See all
-          </Link>
-        </div>
 
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-          {upcomingCards.map((t) => (
+      <section className="max-w-7xl mx-auto px-6 pb-16">
+  <Next7DaysFromDb title="Upcoming tournaments" limit={5} />
+</section>
+<section className="max-w-7xl mx-auto px-6 pb-16">
+  <div className="flex items-start justify-between gap-6">
+    <div>
+      <h2 className="text-2xl font-extrabold tracking-tight">1st Place Winners</h2>
+      <p className="text-sm text-zinc-500 mt-1">
+        From the last 3 completed tournaments.
+      </p>
+    </div>
+
+    <Link href="/leaderboards" className="text-sm text-yellow-400 hover:underline">
+      View all winners →
+    </Link>
+  </div>
+
+  <div className="mt-6 rounded-3xl border border-zinc-800 bg-zinc-900/10 overflow-hidden">
+    <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+      <div className="font-semibold">Last 3 tournaments</div>
+      <div className="text-xs text-zinc-500">Showing 1st place only</div>
+    </div>
+
+    <div className="p-6">
+      {loadingChampions ? (
+        <div className="text-sm text-zinc-400">Loading winners...</div>
+      ) : displayedChampions.length === 0 ? (
+        <div className="text-sm text-zinc-400">No winners published yet.</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {displayedChampions.map((c) => (
             <div
-              key={t.id}
-              className="rounded-2xl border border-zinc-800 bg-zinc-900/20 p-5"
+              key={c.id}
+              className="rounded-2xl border border-zinc-800 bg-black/20 p-5"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-lg font-bold">{t.title}</div>
-                  <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    <StatusBadge status={t.status} />
-                    <TypePill type={t.type} />
-                    <span className="text-xs text-zinc-500">• {t.duration}</span>
+              <div className="text-xs text-zinc-400">Tournament</div>
+              <div className="text-lg font-semibold mt-1">{c.title}</div>
+
+              <div className="mt-3 text-sm text-zinc-400">Winner</div>
+              <div className="text-xl font-bold text-yellow-300">
+                {c.winner_name}
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-zinc-800 bg-black/25 p-3">
+                  <div className="text-xs text-zinc-400">ROI</div>
+                  <div className="mt-1 text-lg font-bold text-emerald-300">
+                    {c.winner_roi != null ? `+${c.winner_roi}%` : "—"}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-xs text-zinc-400">Entry</div>
-                  <div className="text-sm font-semibold">FREE</div>
-                </div>
-              </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-zinc-800 bg-black/30 p-4">
-                  <div className="text-xs text-zinc-400">Prize Pool</div>
-                  <div className="text-xl font-bold mt-1">${money(t.prize)}</div>
-                </div>
-                <div className="rounded-xl border border-zinc-800 bg-black/30 p-4">
-                  <div className="text-xs text-zinc-400">Partner</div>
-                  <div className="mt-2">
-                    <SponsorMini name={t.sponsor.name} logo={t.sponsor.logo} />
+                <div className="rounded-xl border border-zinc-800 bg-black/25 p-3">
+                  <div className="text-xs text-zinc-400">Profit</div>
+                  <div className="mt-1 text-lg font-bold text-green-400">
+                    {c.winner_profit != null ? `+$${money(c.winner_profit)}` : "—"}
                   </div>
                 </div>
-              </div>
-
-              <div className="mt-5 flex gap-3">
-                <Link
-                  href={`/tournaments/${t.id}`}
-                  className="flex-1 border border-zinc-700 px-4 py-2 rounded-lg hover:bg-zinc-900 text-sm text-center"
-                >
-                  Details
-                </Link>
-                <Link
-                  href={`/tournaments/${t.id}/join`}
-                  className="flex-1 bg-yellow-500 text-black px-4 py-2 rounded-lg font-semibold text-sm text-center hover:bg-yellow-400 transition"
-                >
-                  Join
-                </Link>
-              </div>
-
-              <div className="mt-4 text-xs text-zinc-500">
-                Flow: accept rules → download platform → submit account info.
               </div>
             </div>
           ))}
         </div>
-      </section>
-
-      {/* ✅ بدل Next 7 Days: Upcoming tournaments from DB (closest 3) */}
-      <section className="max-w-6xl mx-auto px-6 pb-16">
-        <Next7DaysFromDb title="Upcoming tournaments" limit={3} />
-      </section>
-
-      {/* LEADERBOARD (Improved) */}
-      <section id="leaderboard" className="max-w-6xl mx-auto px-6 pb-16">
-        {/* ... نفس كودك بدون أي تغيير ... */}
-        {/* (أنا ما عدّلت شيء هنا) */}
-        <div className="flex items-start justify-between gap-6">
-          <div>
-            <h2 className="text-2xl font-extrabold tracking-tight">Leaderboard</h2>
-            <p className="text-sm text-zinc-500 mt-1">
-              Top performance snapshot — updates as results come in.
-            </p>
-          </div>
-
-          <Link href="/leaderboards" className="text-sm text-yellow-400 hover:underline">
-            View full leaderboard →
-          </Link>
-        </div>
-
-        {/* TOP 3 PODIUM */}
-        <div className="mt-6 rounded-3xl border border-zinc-800 bg-zinc-900/10 overflow-hidden">
-          <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
-            <div className="font-semibold">Top 3</div>
-            <div className="text-xs text-zinc-500">Quick view (ROI + Profit)</div>
-          </div>
-
-          <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-            {leaderboardWeek.slice(0, 3).map((r) => {
-              const isFirst = r.rank === 1;
-              const ring = isFirst
-                ? "border-yellow-500/40 bg-yellow-500/10"
-                : "border-zinc-800 bg-black/20";
-
-              return (
-                <div
-                  key={r.rank}
-                  className={`rounded-2xl border ${ring} p-5 relative overflow-hidden`}
-                >
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-60" />
-
-                  <div className="relative flex items-start justify-between">
-                    <div>
-                      <div className="text-xs text-zinc-400">Rank</div>
-                      <div
-                        className={`mt-1 text-3xl font-extrabold ${
-                          isFirst ? "text-yellow-300" : "text-zinc-200"
-                        }`}
-                      >
-                        #{r.rank}
-                      </div>
-                    </div>
-
-                    <div
-                      className={`text-[11px] font-bold px-3 py-1 rounded-full border ${
-                        isFirst
-                          ? "border-yellow-500/40 bg-yellow-500/10 text-yellow-200"
-                          : "border-zinc-700 bg-black/30 text-zinc-300"
-                      }`}
-                    >
-                      {isFirst ? "LEADER" : "TOP"}
-                    </div>
-                  </div>
-
-                  <div className="relative mt-4">
-                    <div className="text-lg font-semibold">{r.trader}</div>
-                    <div className="mt-4 grid grid-cols-2 gap-3">
-                      <div className="rounded-xl border border-zinc-800 bg-black/25 p-4">
-                        <div className="text-xs text-zinc-400">ROI</div>
-                        <div className="mt-1 text-xl font-extrabold text-emerald-300">
-                          +{r.roi}%
-                        </div>
-                      </div>
-                      <div className="rounded-xl border border-zinc-800 bg-black/25 p-4">
-                        <div className="text-xs text-zinc-400">Profit</div>
-                        <div className="mt-1 text-xl font-extrabold text-green-400">
-                          +${money(r.profit)}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+      )}
+    </div>
+  </div>
+</section>
 
       {/* HOW IT WORKS */}
-      <section id="how" className="max-w-6xl mx-auto px-6 pb-16">
+      <section id="how" className="max-w-7xl mx-auto px-6 pb-16">
         {/* ... نفس كودك بدون تغيير ... */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/15 p-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">

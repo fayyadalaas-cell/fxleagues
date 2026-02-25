@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 import Link from "next/link";
 
 export default function JoinTournamentPage() {
@@ -20,19 +20,26 @@ export default function JoinTournamentPage() {
   const [joining, setJoining] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
+  const [resending, setResending] = useState(false);
 
-  useEffect(() => {
-    const checkUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+useEffect(() => {
+  const checkUser = async () => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const sessionUser = sessionData?.session?.user ?? null;
 
-      setUser(user);
+    if (sessionUser) {
+      setUser(sessionUser);
       setLoading(false);
-    };
+      return;
+    }
 
-    checkUser();
-  }, []);
+    const { data } = await supabase.auth.getUser();
+    setUser(data?.user ?? null);
+    setLoading(false);
+  };
+
+  checkUser();
+}, []);
 
   // helper: "daily-sprint" -> "Daily Sprint"
   const toTitleGuess = (s: string) =>
@@ -47,9 +54,19 @@ export default function JoinTournamentPage() {
     setMessage(null);
 
     if (!user) {
-      setMessage("You must sign in before joining.");
-      return;
-    }
+  setMessage("Please sign in to join this tournament.");
+  return;
+}
+
+if (!user.email_confirmed_at) {
+  setMessage("Your account is not verified yet. Please verify your email before joining.");
+  return;
+}
+
+    if (!user.email_confirmed_at) {
+  setMessage("Please verify your email before joining tournaments.");
+  return;
+}
 
     if (!baseSlug) {
       setMessage("Invalid tournament link.");
@@ -160,18 +177,50 @@ export default function JoinTournamentPage() {
             </div>
           </div>
         ) : (
-          <div>
-            <button
-              onClick={handleJoin}
-              disabled={joining}
-              className="w-full bg-yellow-500 text-black font-semibold py-3 rounded-lg hover:bg-yellow-400 transition disabled:opacity-60"
-            >
-              {joining ? "Joining..." : "Confirm Join"}
-            </button>
+  <div>
+    {/* 🔒 Email not verified warning */}
+    {user && !user.email_confirmed_at && (
+      <div className="mb-4 rounded-lg border border-zinc-700 bg-zinc-800 p-4">
+        <div className="text-sm text-zinc-200">
+          Your email is not verified yet. Please verify your email before joining tournaments.
+        </div>
 
-            {message && <div className="mt-4 text-sm text-zinc-300">{message}</div>}
-          </div>
-        )}
+        <button
+          onClick={async () => {
+            setResending(true);
+            const email = user?.email;
+            if (email) {
+              await supabase.auth.resend({
+                type: "signup",
+                email,
+              });
+              setMessage(
+                "Verification email sent again. Please check your inbox (including spam)."
+              );
+            }
+            setResending(false);
+          }}
+          disabled={resending}
+          className="mt-3 rounded-lg bg-yellow-500 px-4 py-2 font-semibold text-black hover:bg-yellow-400 transition disabled:opacity-60"
+        >
+          {resending ? "Sending..." : "Resend verification email"}
+        </button>
+      </div>
+    )}
+
+    <button
+      onClick={handleJoin}
+      disabled={joining || (user && !user.email_confirmed_at)}
+      className="w-full bg-yellow-500 text-black font-semibold py-3 rounded-lg hover:bg-yellow-400 transition disabled:opacity-60"
+    >
+      {joining ? "Joining..." : "Confirm Join"}
+    </button>
+
+    {message && (
+      <div className="mt-4 text-sm text-zinc-300">{message}</div>
+    )}
+  </div>
+)}
 
         <div className="mt-6 text-xs text-zinc-500">
           Registration will be stored in the <strong>tournament_registrations</strong> table via the{" "}
