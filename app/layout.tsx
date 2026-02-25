@@ -3,6 +3,8 @@ import Link from "next/link";
 import "./globals.css";
 import { AuthProvider } from "./providers";
 import AuthButtons from "./AuthButtons";
+import { Suspense } from "react";
+import VerifyEmailBanner from "./components/VerifyEmailBanner";
 
 export const metadata: Metadata = {
   title: "FX Leagues",
@@ -120,10 +122,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="bg-black text-white">
         <AuthProvider>
-          <Navbar />
-          {children}
-          <Footer />
-        </AuthProvider>
+       <Navbar />
+
+       <Suspense fallback={null}>
+       <VerifyEmailBanner />
+       </Suspense>
+
+       {children}
+       <Footer />
+       </AuthProvider>
       </body>
     </html>
   );
