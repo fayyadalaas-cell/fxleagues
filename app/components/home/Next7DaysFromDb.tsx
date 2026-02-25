@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { fetchTournaments, type TournamentDB } from "@/lib/tournaments";
-import { supabase } from "@/lib/supabase/client"; // ✅ مهم: نفس الملف اللي عندك
+import { supabase } from "@/lib/supabase/client"; // ✅ نفس ملفك
 
 type Row = {
   id: string;
@@ -15,7 +15,7 @@ type Row = {
   startDate: Date;
   endDate: Date | null;
   dateLabel: string;
-  timeLabel: string; // 7:00 PM
+  timeLabel: string;
   prize: number;
 };
 
@@ -76,7 +76,7 @@ export default function Next7DaysFromDb({ title = "Next 7 Days", limit = 7 }: Pr
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ✅ نخزن البطولات اللي المستخدم مسجل فيها
+  // ✅ tournaments joined by current user
   const [joinedIds, setJoinedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -93,7 +93,9 @@ export default function Next7DaysFromDb({ title = "Next 7 Days", limit = 7 }: Pr
         setRows(mapped);
 
         // 2) session
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (!alive) return;
 
         if (!session) {
@@ -117,7 +119,6 @@ export default function Next7DaysFromDb({ title = "Next 7 Days", limit = 7 }: Pr
         if (!alive) return;
 
         if (error) {
-          // إذا طلع error هنا غالباً RLS policy ناقصة (بنحلها بعدها)
           console.error("Failed to load registrations:", error.message);
           setJoinedIds(new Set());
           return;
@@ -125,7 +126,6 @@ export default function Next7DaysFromDb({ title = "Next 7 Days", limit = 7 }: Pr
 
         const s = new Set<string>((regs ?? []).map((r: any) => r.tournament_id));
         setJoinedIds(s);
-
       } finally {
         if (alive) setLoading(false);
       }
@@ -136,7 +136,7 @@ export default function Next7DaysFromDb({ title = "Next 7 Days", limit = 7 }: Pr
     };
   }, []);
 
-  // ✅ أقرب (limit) مسابقات قادمة خلال 30 يوم + LIVE الحقيقي
+  // ✅ Top (limit) upcoming within 30 days + LIVE
   const topN = useMemo(() => {
     const now = new Date();
     const WINDOW_DAYS = 30;
@@ -176,7 +176,8 @@ export default function Next7DaysFromDb({ title = "Next 7 Days", limit = 7 }: Pr
 
       {!loading && topN.length > 0 && (
         <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950">
-          <div className="grid grid-cols-12 border-b border-zinc-800 px-4 py-3 text-xs text-zinc-400">
+          {/* ✅ Desktop table header */}
+          <div className="hidden md:grid grid-cols-12 border-b border-zinc-800 px-4 py-3 text-xs text-zinc-400">
             <div className="col-span-2">Date</div>
             <div className="col-span-2">Time</div>
             <div className="col-span-4">Tournament</div>
@@ -189,10 +190,10 @@ export default function Next7DaysFromDb({ title = "Next 7 Days", limit = 7 }: Pr
             {topN.map((t) => {
               const isJoined = joinedIds.has(t.id);
 
-              return (
+              // ✅ Desktop row (grid)
+              const DesktopRow = (
                 <div
-                  key={t.id}
-                  className={`grid grid-cols-12 items-center px-4 py-4 ${
+                  className={`hidden md:grid grid-cols-12 items-center px-4 py-4 ${
                     t.status === "LIVE" ? "bg-emerald-500/10" : ""
                   }`}
                 >
@@ -201,11 +202,18 @@ export default function Next7DaysFromDb({ title = "Next 7 Days", limit = 7 }: Pr
 
                   <div className="col-span-4">
                     <div className="flex items-center gap-2">
-                      <Link href={`/tournaments/${t.slug}`} className="text-sm font-semibold hover:underline">
+                      <Link
+                        href={`/tournaments/${t.slug}`}
+                        className="text-sm font-semibold hover:underline"
+                      >
                         {t.title}
                       </Link>
 
-                      <span className={`rounded-full border px-2 py-1 text-[11px] ${badgeStatusClass(t.status)}`}>
+                      <span
+                        className={`rounded-full border px-2 py-1 text-[11px] ${badgeStatusClass(
+                          t.status
+                        )}`}
+                      >
                         {t.status}
                       </span>
 
@@ -247,6 +255,91 @@ export default function Next7DaysFromDb({ title = "Next 7 Days", limit = 7 }: Pr
                       </Link>
                     )}
                   </div>
+                </div>
+              );
+
+              // ✅ Mobile card
+              const MobileCard = (
+                <div
+                  className={`md:hidden px-4 py-4 ${
+                    t.status === "LIVE" ? "bg-emerald-500/10" : ""
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <Link
+                        href={`/tournaments/${t.slug}`}
+                        className="text-sm font-semibold text-white hover:underline block truncate"
+                      >
+                        {t.title}
+                      </Link>
+
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className={`rounded-full border px-2 py-1 text-[11px] ${badgeStatusClass(t.status)}`}>
+                          {t.status}
+                        </span>
+                        <span className="rounded-full border border-zinc-700/70 px-2 py-1 text-[11px] text-zinc-200">
+                          {t.type}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <div className="text-[11px] text-zinc-400">Prize</div>
+                      <div className="font-bold text-yellow-400">{money(t.prize)}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-zinc-800 bg-black/20 p-3">
+                      <div className="text-[11px] text-zinc-400">Date</div>
+                      <div className="text-sm font-semibold text-white mt-1">{t.dateLabel}</div>
+                    </div>
+
+                    <div className="rounded-xl border border-zinc-800 bg-black/20 p-3">
+                      <div className="text-[11px] text-zinc-400">Time</div>
+                      <div className="text-sm font-semibold text-white mt-1">{t.timeLabel}</div>
+                    </div>
+
+                    <div className="col-span-2 rounded-xl border border-zinc-800 bg-black/20 p-3">
+                      <div className="text-[11px] text-zinc-400">Partner</div>
+                      <div className="text-sm font-semibold text-white mt-1 truncate">
+                        {t.sponsorName}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex gap-2">
+                    <Link
+                      href={`/tournaments/${t.slug}`}
+                      className="flex-1 rounded-lg border border-zinc-700 px-3 py-2 text-xs font-semibold text-white hover:bg-zinc-800 text-center"
+                    >
+                      Details
+                    </Link>
+
+                    {isJoined ? (
+                      <button
+                        disabled
+                        className="flex-1 rounded-lg bg-zinc-700 px-3 py-2 text-xs font-semibold text-zinc-300 cursor-not-allowed"
+                      >
+                        Joined
+                      </button>
+                    ) : (
+                      <Link
+                        href={`/tournaments/${t.slug}/join`}
+                        className="flex-1 rounded-lg bg-yellow-500 px-3 py-2 text-xs font-semibold text-black hover:bg-yellow-400 text-center"
+                      >
+                        Join
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              );
+
+              return (
+                <div key={t.id}>
+                  {MobileCard}
+                  {DesktopRow}
                 </div>
               );
             })}
