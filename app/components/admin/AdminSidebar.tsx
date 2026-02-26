@@ -29,7 +29,10 @@ export default function AdminSidebar() {
     },
     {
       title: "Content",
-      items: [{ href: "/brokers", label: "Brokers Page", desc: "View public page" }],
+      items: [
+  { href: "/admin/brokers", label: "Manage Brokers", desc: "Homepage broker logos" },
+  { href: "/brokers", label: "Brokers Page", desc: "View public page" },
+],
     },
   ];
 

@@ -22,7 +22,7 @@ export default function Navbar() {
             <div className="leading-tight min-w-0">
               <div className="font-bold text-white truncate">Forex Leagues</div>
               <div className="text-xs text-zinc-400 truncate">
-                Competitions • Leaderboards
+                Verified Forex Competitions
               </div>
             </div>
           </Link>

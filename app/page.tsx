@@ -5,6 +5,8 @@ import Image from "next/image";
 import Next7DaysFromDb from "@/app/components/home/Next7DaysFromDb";
 import { supabase } from "@/lib/supabase/client";
 import VerifyEmailBanner from "@/app/components/VerifyEmailBanner";
+import { BROKERS_CONFIG } from "@/lib/brokers-config";
+
 
 
 type Tournament = {
@@ -112,10 +114,10 @@ const next7Days: Tournament[] = [
 ];
 
 const trustedBrokers = [
-  { name: "Exness", logo: "/brokers/exness.png" },
-  { name: "IC Markets", logo: "/brokers/icmarkets.png" },
-  { name: "Vantage", logo: "/brokers/vantage.png" },
-  { name: "FXTM", logo: "/brokers/fxtm.png" },
+  { name: "Exness", logo: "/brokers/exness.png", regulated: true },
+  { name: "IC Markets", logo: "/brokers/icmarkets.png", regulated: true },
+  { name: "Vantage", logo: "/brokers/vantage.png", regulated: true },
+  { name: "FXTM", logo: "/brokers/fxtm.png", regulated: true },
 ];
 
 const leaderboardWeek: LeaderRow[] = [
@@ -301,16 +303,13 @@ const liveId: string | undefined = undefined;
 
     {/* HERO (full width feel + cleaner spacing) */}
 <section className="max-w-7xl mx-auto px-6 pt-8 pb-16">
-          <div className="w-full rounded-[28px] border border-zinc-800/90 ring-1 ring-white/5 bg-gradient-to-b from-zinc-950/80 via-zinc-950/60 to-black p-10 md:p-12 shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_30px_90px_rgba(0,0,0,0.85)]">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+            <div className="w-full rounded-[28px] border border-zinc-800/90 ring-1 ring-white/5 bg-gradient-to-b from-zinc-950/80 via-zinc-950/60 to-black p-6 sm:p-8 md:p-12 shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_30px_90px_rgba(0,0,0,0.85)]">          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
             <div className="lg:col-span-8">
-<h1 className="text-5xl md:text-7xl font-extrabold leading-[1.05] tracking-tight">                Compete. Climb ranks.{" "}
-                <span className="text-yellow-400">Win prizes.</span>
+<h1 className="text-4xl sm:text-5xl md:text-7xl font-extrabold leading-[1.05] tracking-tight">                <span className="text-yellow-400">Win prizes.</span>
               </h1>
 
-              <p className="text-zinc-300/90 mt-5 max-w-2xl">
-                Forex trading competitions with verified rankings. Join events, submit your account
-                details, and appear on the leaderboard.
+              <p className="text-zinc-300/90 mt-7 max-w-2xl">
+                Compete in verified Forex tournaments. Prove your strategy. Win real prizes.
               </p>
 
               <div className="mt-7 flex flex-wrap gap-3">
@@ -340,7 +339,7 @@ const liveId: string | undefined = undefined;
 </Link>
               </div>
 
-              <div className="mt-8 flex flex-wrap gap-2">
+              <div className="mt-8 hidden sm:flex flex-wrap gap-2">
                 <span className="text-[11px] px-2 py-1 rounded-full border border-zinc-800 bg-black/40 text-zinc-200">
                   Free entry (for now)
                 </span>
@@ -357,7 +356,7 @@ const liveId: string | undefined = undefined;
             </div>
 
             {/* Right side: compact “today snapshot” */}
-            <div className="lg:col-span-4">
+            <div className="hidden lg:block lg:col-span-4">
               <div className="relative overflow-hidden rounded-3xl border border-zinc-800 bg-gradient-to-b from-zinc-950/70 to-black p-6 shadow-xl">
             <div className="pointer-events-none absolute -top-24 -right-24 h-56 w-56 rounded-full bg-yellow-500/10 blur-3xl" />
 <div className="pointer-events-none absolute -bottom-24 -left-24 h-56 w-56 rounded-full bg-white/5 blur-3xl" />
@@ -422,6 +421,32 @@ ${money(nextTournament?.prize_pool ?? 0)}
         </div>
       </section>
 
+{/* MOBILE – Compact Next Tournament */}
+<div className="lg:hidden max-w-7xl mx-auto px-6 -mt-10 pb-8">
+  <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 flex items-center justify-between gap-4">
+
+    <div>
+      <div className="text-xs text-zinc-400">Next tournament</div>
+      <div className="font-semibold text-sm mt-1">
+        {loadingNext ? "Loading..." : nextTournament?.title ?? "—"}
+      </div>
+      <div className="text-xs text-zinc-500 mt-1">
+        {nextTournament
+          ? new Date(nextTournament.start_date).toLocaleDateString()
+          : ""}
+      </div>
+    </div>
+
+    <Link
+      href="/schedule"
+      className="bg-yellow-500 text-black px-4 py-2 rounded-lg text-xs font-semibold hover:bg-yellow-400 transition"
+    >
+      View
+    </Link>
+
+  </div>
+</div>
+
      {/* TRUSTED BROKERS STRIP (FIX: no drop to 2nd line on desktop) */}
 <section className="max-w-7xl mx-auto px-6 pt-1 pb-6">
   <div
@@ -458,28 +483,29 @@ ${money(nextTournament?.prize_pool ?? 0)}
         </div>
       </div>
 
-            {/* ✅ تغيير صغير: grid بدل flex-wrap */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-center">
-              {trustedBrokers.map((b) => (
-                <div
-  key={b.name}
-  className="h-24 rounded-3xl border border-zinc-700/80 bg-gradient-to-b from-zinc-900/60 to-black 
-             flex items-center justify-center px-10
-             transition-all duration-300 
-             hover:scale-[1.07] 
-             hover:border-yellow-500/60 
-             hover:shadow-[0_0_30px_rgba(234,179,8,0.15)]"
->
-                  <Image
-                    src={b.logo}
-                    alt={b.name}
-                    width={160}
-                    height={52}
-                    className="object-contain max-h-12 w-auto"
-                  />
-                </div>
-              ))}
-            </div>
+            {/* Trusted Brokers */}
+<div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-center">
+  {BROKERS_CONFIG.map((b) => (
+  <Link
+    key={b.key}
+    href={b.href}
+    target={b.newTab ? "_blank" : "_self"}
+    className="h-16 md:h-24 rounded-xl border border-yellow-500/40 bg-gradient-to-b from-zinc-900/60 to-black 
+               flex items-center justify-center px-3 md:px-8
+               transition-all duration-300 
+               hover:border-yellow-400/70 
+               hover:shadow-[0_0_25px_rgba(234,179,8,0.25)]"
+  >
+    <Image
+      src={b.logo}
+      alt={b.name}
+      width={160}
+      height={52}
+      className="w-full h-full object-contain"
+    />
+  </Link>
+))}
+</div>
           </div>
         </div>
       </section>
@@ -502,8 +528,10 @@ ${money(nextTournament?.prize_pool ?? 0)}
     </Link>
   </div>
 
-  <div className="mt-6 rounded-3xl border border-zinc-800 bg-zinc-900/10 overflow-hidden">
-    <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+  <div className="mt-6 relative overflow-hidden rounded-2xl md:rounded-3xl border border-zinc-800/90 ring-1 ring-white/5 bg-gradient-to-b from-zinc-950/70 via-zinc-950/30 to-black shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_30px_90px_rgba(0,0,0,0.85)]">
+  <div className="pointer-events-none absolute -top-40 -right-40 h-80 w-80 rounded-full bg-yellow-500/6 blur-3xl" />
+  <div className="pointer-events-none absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-white/5 blur-3xl" />
+    <div className="px-6 py-4 border-b border-zinc-800/80 flex items-center justify-between bg-black/20">
       <div className="font-semibold">Last 3 tournaments</div>
       <div className="text-xs text-zinc-500">Showing 1st place only</div>
     </div>
@@ -514,37 +542,55 @@ ${money(nextTournament?.prize_pool ?? 0)}
       ) : displayedChampions.length === 0 ? (
         <div className="text-sm text-zinc-400">No winners published yet.</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
           {displayedChampions.map((c) => (
-            <div
-              key={c.id}
-              className="rounded-2xl border border-zinc-800 bg-black/20 p-5"
-            >
-              <div className="text-xs text-zinc-400">Tournament</div>
-              <div className="text-lg font-semibold mt-1">{c.title}</div>
+  <div
+    key={c.id}
+className="group relative overflow-hidden rounded-2xl min-h-[148px] border border-yellow-500/35 bg-gradient-to-b from-zinc-950/70 via-black/60 to-black p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_18px_60px_rgba(0,0,0,0.65)] transition hover:border-yellow-400/60"  >
+    {/* subtle glow */}
+    <div className="pointer-events-none absolute -top-24 -right-24 h-48 w-48 rounded-full bg-yellow-500/10 blur-3xl" />
+    <div className="pointer-events-none absolute -bottom-24 -left-24 h-48 w-48 rounded-full bg-white/5 blur-3xl" />
 
-              <div className="mt-3 text-sm text-zinc-400">Winner</div>
-              <div className="text-xl font-bold text-yellow-300">
-                {c.winner_name}
-              </div>
+    {/* content */}
+    <div className="relative grid grid-cols-[1fr_auto] gap-4 items-start">
+      {/* Left: tournament + winner */}
+      <div className="min-w-0">
+        <div className="text-[11px] uppercase tracking-wide text-zinc-500">
+          Tournament
+        </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-zinc-800 bg-black/25 p-3">
-                  <div className="text-xs text-zinc-400">ROI</div>
-                  <div className="mt-1 text-lg font-bold text-emerald-300">
-                    {c.winner_roi != null ? `+${c.winner_roi}%` : "—"}
-                  </div>
-                </div>
+        <div className="mt-1 text-lg font-extrabold tracking-tight text-white truncate">
+          {c.title}
+        </div>
 
-                <div className="rounded-xl border border-zinc-800 bg-black/25 p-3">
-                  <div className="text-xs text-zinc-400">Profit</div>
-                  <div className="mt-1 text-lg font-bold text-green-400">
-                    {c.winner_profit != null ? `+$${money(c.winner_profit)}` : "—"}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="mt-4 text-[11px] uppercase tracking-wide text-zinc-500">
+          Winner
+        </div>
+
+        <div className="mt-1 text-xl font-extrabold text-yellow-300 truncate">
+          {c.winner_name}
+        </div>
+      </div>
+
+      {/* Right: stacked stats (no overlap) */}
+      <div className="flex flex-col gap-2 items-end">
+        <div className="rounded-xl border border-zinc-800 bg-black/35 px-3 py-2 text-right min-w-[110px]">
+          <div className="text-[11px] text-zinc-500">ROI</div>
+          <div className="mt-0.5 text-base font-extrabold text-emerald-300">
+            {c.winner_roi != null ? `+${c.winner_roi}%` : "—"}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-zinc-800 bg-black/35 px-3 py-2 text-right min-w-[110px]">
+          <div className="text-[11px] text-zinc-500">Profit</div>
+          <div className="mt-0.5 text-base font-extrabold text-green-400">
+            {c.winner_profit != null ? `+$${money(c.winner_profit)}` : "—"}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+))}
         </div>
       )}
     </div>
@@ -552,32 +598,212 @@ ${money(nextTournament?.prize_pool ?? 0)}
 </section>
 
       {/* HOW IT WORKS */}
-      <section id="how" className="max-w-7xl mx-auto px-6 pb-16">
-        {/* ... نفس كودك بدون تغيير ... */}
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/15 p-8">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-            <div>
-              <div className="text-xs text-zinc-400">How it works</div>
-              <h2 className="text-2xl font-extrabold mt-2">
-                Join in minutes — compete with clean rules
-              </h2>
-              <p className="text-zinc-400 mt-2 max-w-2xl">
-                A simple flow designed for speed: agree to rules, download the platform,
-                submit your trading account details, then you appear on the leaderboard.
-              </p>
-            </div>
+<section id="how" className="max-w-7xl mx-auto px-6 pb-16">
+  <div className="relative overflow-hidden rounded-3xl border border-zinc-800/90 ring-1 ring-white/5 bg-gradient-to-b from-zinc-950/80 via-zinc-950/40 to-black p-8 md:p-10 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_40px_120px_rgba(0,0,0,0.9)]">
 
-            <Link
-              href="/schedule"
-              className="bg-yellow-500 text-black px-5 py-3 rounded-lg font-semibold w-fit hover:bg-yellow-400 transition"
-            >
-              See tournaments
-            </Link>
+    {/* glow */}
+    <div className="pointer-events-none absolute -top-40 -right-40 h-80 w-80 rounded-full bg-yellow-500/8 blur-3xl" />
+    <div className="pointer-events-none absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-white/5 blur-3xl" />
+
+    <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+
+      {/* LEFT SIDE */}
+      <div className="lg:col-span-8">
+        <div className="text-xs text-zinc-400">How it works</div>
+
+        <h2 className="text-2xl md:text-3xl font-extrabold mt-2 tracking-tight">
+          Join in minutes — compete with clean rules
+        </h2>
+
+        {/* REAL FLOW */}
+        <div className="mt-6 space-y-3 text-sm text-zinc-400 max-w-2xl leading-relaxed">
+
+          <div>
+            <span className="text-yellow-300 font-semibold">1.</span>{" "}
+            Join the tournament and accept the rules.
+          </div>
+
+          <div>
+            <span className="text-yellow-300 font-semibold">2.</span>{" "}
+            Download MT5 / MT4 and create a demo account with{" "}
+            <span className="text-white font-semibold">$10,000 balance</span>{" "}
+            and{" "}
+            <span className="text-white font-semibold">1:100 leverage</span>.
+          </div>
+
+          <div>
+            <span className="text-yellow-300 font-semibold">3.</span>{" "}
+            Submit your demo account details from the tournament page.
+          </div>
+
+          <div>
+            <span className="text-yellow-300 font-semibold">4.</span>{" "}
+            Wait for admin review — your tournament status updates to
+            <span className="text-emerald-400 font-semibold"> Approved</span>{" "}
+            in your dashboard and tournament details page.
+            <span className="text-emerald-400 font-semibold">
+            </span>.
+          </div>
+
+          <div>
+            <span className="text-yellow-300 font-semibold">5.</span>{" "}
+            Once approved, you appear on the live leaderboard.
           </div>
         </div>
-      </section>
 
-      {/* SPONSORS + CTA ... نفس كودك بدون تغيير */}
-    </main>
-  );
+        {/* PRIMARY CTA */}
+        <div className="mt-8">
+          <Link
+            href="/schedule"
+            className="inline-block bg-yellow-500 text-black px-6 py-3 rounded-xl font-bold text-sm hover:bg-yellow-400 transition"
+          >
+            See tournaments →
+          </Link>
+        </div>
+      </div>
+
+      {/* RIGHT SIDE (INFO BOX) */}
+      <div className="lg:col-span-4">
+        <div className="rounded-2xl border border-zinc-800 bg-black/40 p-6">
+          <div className="text-sm font-semibold text-white">
+            Demo requirements
+          </div>
+
+          <ul className="mt-4 space-y-2 text-sm text-zinc-400">
+            <li>• Balance: $10,000</li>
+            <li>• Leverage: 1:100</li>
+            <li>• Platform: MT5 / MT4</li>
+            <li>• Verified before ranking</li>
+          </ul>
+
+          <div className="mt-6 text-xs text-zinc-500 leading-relaxed">
+            Your account will not appear on the leaderboard until it is approved by the admin team.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+{/* BROKER SHORTCUT (before Subscribe) */}
+<section className="max-w-7xl mx-auto px-6 pb-10">
+  <div className="relative overflow-hidden rounded-2xl md:rounded-3xl border border-zinc-800/90 ring-1 ring-white/5 bg-gradient-to-b from-zinc-950/70 via-zinc-950/30 to-black p-7 md:p-10 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_30px_90px_rgba(0,0,0,0.7)]">
+    {/* glow */}
+    <div className="pointer-events-none absolute -top-40 -left-40 h-80 w-80 rounded-full bg-yellow-500/6 blur-3xl" />
+    <div className="pointer-events-none absolute -bottom-40 -right-40 h-80 w-80 rounded-full bg-yellow-500/6 blur-3xl" />
+
+    <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+      <div className="min-w-0">
+        <div className="text-xs text-zinc-400">Broker access</div>
+        <h3 className="text-xl md:text-2xl font-extrabold tracking-tight mt-2">
+          Open a real trading account with a trusted broker
+        </h3>
+        <p className="text-sm text-zinc-400 mt-2 max-w-2xl">
+          Choose an official partner broker and get tournament-ready. You can
+          compare brokers and open an account in minutes.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+  <Link
+    href="/brokers"
+    className="bg-yellow-500 text-black px-5 py-3 rounded-lg font-semibold text-sm hover:bg-yellow-400 transition"
+  >
+    Open real account →
+  </Link>
+</div>
+    </div>
+
+    {/* Logos row */}
+<div className="relative mt-7 grid grid-cols-2 sm:grid-cols-4 gap-4">
+  {trustedBrokers.map((b) => (
+    <Link
+      key={b.name}
+      href="/brokers"
+      className="group rounded-2xl border border-zinc-800/80 bg-black/35 p-4
+                 hover:border-yellow-400/40 hover:bg-black/45 transition"
+      title={`Open ${b.name}`}
+    >
+      {/* top label */}
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="text-sm font-semibold text-white truncate">
+          {b.name}
+        </div>
+
+        {b.regulated && (
+          <span
+            className="shrink-0 inline-flex items-center rounded-full
+                       border border-emerald-500/30 bg-emerald-500/10
+                       px-2 py-0.5 text-[11px] font-semibold text-emerald-300"
+          >
+            Regulated
+          </span>
+        )}
+      </div>
+
+      {/* logo box */}
+      <div
+        className="relative h-14 md:h-16 rounded-xl border border-zinc-800/70
+                   bg-gradient-to-b from-zinc-950/60 to-black
+                   flex items-center justify-center px-4
+                   group-hover:border-yellow-400/30 transition"
+      >
+        <Image
+          src={b.logo}
+          alt={b.name}
+          width={180}
+          height={60}
+          className="max-h-10 w-auto object-contain opacity-95 group-hover:opacity-100 transition"
+        />
+      </div>
+    </Link>
+  ))}
+</div>
+
+    <div className="relative mt-4 text-xs text-zinc-500">
+      Tip: You can open a demo first for tournaments, then upgrade to real later.
+    </div>
+  </div>
+</section>
+
+{/* NEWSLETTER SECTION */}
+<section className="max-w-7xl mx-auto px-6 pb-24">
+  <div className="relative overflow-hidden rounded-3xl border border-zinc-800 bg-gradient-to-b from-black via-zinc-950/50 to-black p-10 text-center shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_30px_90px_rgba(0,0,0,0.9)]">
+
+    {/* subtle glow */}
+    <div className="pointer-events-none absolute -top-32 left-1/2 -translate-x-1/2 h-72 w-72 rounded-full bg-yellow-500/10 blur-3xl" />
+
+    <h3 className="text-2xl md:text-3xl font-extrabold">
+      Subscribe for upcoming tournaments
+    </h3>
+
+    <p className="mt-3 text-zinc-400 max-w-xl mx-auto text-sm">
+      Be the first to know about new competitions, prize increases, and special events.
+    </p>
+
+    <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
+      <input
+        type="email"
+        placeholder="Enter your email"
+        className="w-full rounded-xl border border-zinc-800 bg-black/40 px-4 py-3 text-sm focus:outline-none focus:border-yellow-500 transition"
+      />
+
+      <button
+        className="w-full sm:w-auto bg-yellow-500 text-black px-6 py-3 rounded-xl font-bold text-sm hover:bg-yellow-400 transition"
+      >
+        Subscribe
+      </button>
+    </div>
+
+    <div className="mt-4 text-xs text-zinc-600">
+      No spam. Unsubscribe anytime.
+    </div>
+  </div>
+</section>
+
+
+{/* SPONSORS + CTA ... نفس كودك بدون تغيير */}
+</main>
+);
 }
