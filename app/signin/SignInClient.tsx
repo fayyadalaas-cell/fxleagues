@@ -10,54 +10,70 @@ export default function SignInClient({ nextUrl = "/" }: { nextUrl?: string }) {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [infoMsg, setInfoMsg] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErrorMsg(null);
+    setInfoMsg(null);
     setLoading(true);
 
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim(),
       password,
     });
 
     setLoading(false);
 
     if (error) {
-      // مثال: Email not confirmed
       setErrorMsg(error.message);
       return;
     }
 
-    // ✅ إذا ما فيه session (أحياناً لو الإيميل مش مفعّل) نوضح للمستخدم
     if (!data.session) {
       setErrorMsg("Please verify your email first, then try signing in again.");
       return;
     }
 
-    // ✅ لا نخلّي فشل profiles يوقف تسجيل الدخول
-    if (data.user) {
-      const { data: existingProfile, error: profErr } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("id", data.user.id)
-        .maybeSingle();
-
-      if (!profErr && !existingProfile) {
-        await supabase.from("profiles").insert({
-          id: data.user.id,
-          full_name: data.user.user_metadata?.full_name || null,
-        });
-      }
-    }
-
-    // ✅ التحويل الصحيح: إذا nextUrl موجود استخدمه، غير هيك روح /account (مش /admin)
+    // ✅ التحويل الصحيح: إذا nextUrl موجود استخدمه، غير هيك روح /account
     const target = nextUrl && nextUrl !== "/" ? nextUrl : "/account";
 
-    // الأفضل مع Next: push + refresh بدل assign
+    // أفضل للثبات مع Next/Supabase sessions
     window.location.href = target;
+  }
+
+  async function handleForgotPassword() {
+    setErrorMsg(null);
+    setInfoMsg(null);
+
+    const e = email.trim();
+    if (!e) {
+      setErrorMsg("Please enter your email first.");
+      return;
+    }
+
+    setResetLoading(true);
+
+    // ✅ لازم يكون عندك صفحة تستقبل reset flow
+    const redirectTo = `${window.location.origin}/reset-password`;
+
+    const { error } = await supabase.auth.resetPasswordForEmail(e, {
+      redirectTo,
+    });
+
+    setResetLoading(false);
+
+    if (error) {
+      setErrorMsg(error.message);
+      return;
+    }
+
+    setInfoMsg("Password reset email sent. Please check your inbox.");
   }
 
   return (
@@ -68,7 +84,9 @@ export default function SignInClient({ nextUrl = "/" }: { nextUrl?: string }) {
         </Link>
 
         <h1 className="text-3xl font-bold mt-4">Sign in</h1>
-        <p className="text-zinc-400 mt-2">Sign in using your account.</p>
+        <p className="text-zinc-400 mt-2">
+          Sign in to access your FX Leagues account.
+        </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div>
@@ -78,22 +96,38 @@ export default function SignInClient({ nextUrl = "/" }: { nextUrl?: string }) {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
               required
             />
           </div>
 
           <div>
-            <label className="text-sm text-zinc-300">Password</label>
+            <div className="flex items-center justify-between">
+              <label className="text-sm text-zinc-300">Password</label>
+
+              {/* ✅ Forgot password */}
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={resetLoading}
+                className="text-xs text-yellow-400 hover:underline disabled:opacity-60"
+              >
+                {resetLoading ? "Sending..." : "Forgot password?"}
+              </button>
+            </div>
+
             <input
               className="mt-2 w-full bg-black border border-zinc-700 rounded-lg px-4 py-3 outline-none focus:border-yellow-500"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
               required
             />
           </div>
 
           {errorMsg && <div className="text-red-500 text-sm">{errorMsg}</div>}
+          {infoMsg && <div className="text-green-400 text-sm">{infoMsg}</div>}
 
           <button
             disabled={loading}
