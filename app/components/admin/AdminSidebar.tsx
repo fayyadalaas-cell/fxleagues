@@ -21,16 +21,27 @@ export default function AdminSidebar() {
     },
     {
       title: "Tournaments",
-      items: [{ href: "/admin/tournaments", label: "Manage Tournaments", desc: "Create, edit, schedule" }],
+      items: [
+        {
+          href: "/admin/tournaments",
+          label: "Manage Tournaments",
+          desc: "Create, edit, schedule",
+        },
+      ],
     },
     {
       title: "Participants",
       items: [
         {
-  href: "/admin/demo-submissions",
-  label: "Participants List",
-  desc: "Names, email & phone for sponsors",
-},
+          href: "/admin/demo-submissions",
+          label: "Participants List",
+          desc: "Names, email & phone for sponsors",
+        },
+        {
+          href: "/admin/users",
+          label: "Users",
+          desc: "Verify, restrict, edit usernames",
+        },
       ],
     },
     {
