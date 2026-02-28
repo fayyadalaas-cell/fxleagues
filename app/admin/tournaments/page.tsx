@@ -22,20 +22,34 @@ function money(n: number) {
   return `$${Math.round(n).toLocaleString("en-US")}`;
 }
 
-function PrizeTop3({ t }: { t: Tournament }) {
-  const p1 = Number(t.prize_1 ?? 0);
-  const p2 = Number(t.prize_2 ?? 0);
-  const p3 = Number(t.prize_3 ?? 0);
+function fmtDate(ts: string | null) {
+  if (!ts) return "—";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return ts;
+  return d.toLocaleString();
+}
 
-  if (!p1 && !p2 && !p3) return <span className="text-zinc-500">—</span>;
+function StatusPill({ status }: { status: string | null }) {
+  const s = (status ?? "").toUpperCase();
+  const base =
+    "inline-flex items-center rounded-full border px-2 py-1 text-[11px] leading-none";
+  if (!s) return <span className={`${base} border-zinc-700/70 text-zinc-400`}>—</span>;
 
-  return (
-    <div className="inline-flex flex-col items-end gap-1 text-xs text-zinc-200">
-      {p1 ? <div className="leading-tight">#1 {money(p1)}</div> : null}
-      {p2 ? <div className="leading-tight">#2 {money(p2)}</div> : null}
-      {p3 ? <div className="leading-tight">#3 {money(p3)}</div> : null}
-    </div>
-  );
+  if (s === "LIVE")
+    return <span className={`${base} border-emerald-700/40 text-emerald-300`}>LIVE</span>;
+  if (s === "UPCOMING")
+    return <span className={`${base} border-sky-700/40 text-sky-300`}>UPCOMING</span>;
+  if (s === "COMPLETED" || s === "CLOSED" || s === "ENDED")
+    return <span className={`${base} border-zinc-700/70 text-zinc-300`}>CLOSED</span>;
+
+  return <span className={`${base} border-zinc-700/70 text-zinc-300`}>{s}</span>;
+}
+
+function TypePill({ type }: { type: string | null }) {
+  const t = type ?? "";
+  const base =
+    "inline-flex items-center rounded-full border border-zinc-700/70 px-2 py-1 text-[11px] leading-none text-zinc-200";
+  return <span className={base}>{t || "—"}</span>;
 }
 
 export default async function AdminTournamentsPage() {
@@ -57,7 +71,9 @@ export default async function AdminTournamentsPage() {
               ← Back to Admin
             </Link>
             <h1 className="text-3xl font-bold mt-3">Tournaments</h1>
-            <p className="mt-2 text-zinc-400">Manage schedule tournaments.</p>
+            <p className="mt-2 text-zinc-400">
+              Click any tournament to manage (edit, registrations, results, prizes).
+            </p>
           </div>
 
           <Link
@@ -76,72 +92,59 @@ export default async function AdminTournamentsPage() {
 
         {!error && (
           <div className="mt-6 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950">
+            {/* header */}
             <div className="grid grid-cols-12 border-b border-zinc-800 px-4 py-3 text-xs text-zinc-400">
-              <div className="col-span-3">Tournament</div>
-              <div className="col-span-2">Start</div>
-              <div className="col-span-2">Type</div>
-              <div className="col-span-2 text-right">Prize Pool</div>
-              <div className="col-span-2 text-right">Prize (Top 3)</div>
-              <div className="col-span-1 text-right">Actions</div>
+              <div className="col-span-4">Tournament</div>
+              <div className="col-span-3">Start</div>
+              <div className="col-span-3">Type / Status</div>
+              <div className="col-span-1 text-right">Pool</div>
+              <div className="col-span-1 text-right">Open</div>
             </div>
 
             <div className="divide-y divide-zinc-800">
               {items.map((t) => (
-                <div key={t.id} className="grid grid-cols-12 items-center px-4 py-4">
-                  <div className="col-span-3 min-w-0">
+                <Link
+                  key={t.id}
+                  href={`/admin/tournaments/${t.id}`}
+                  className="grid grid-cols-12 items-center px-4 py-3 hover:bg-white/[0.03] transition"
+                  title="Open tournament"
+                >
+                  {/* Tournament */}
+                  <div className="col-span-4 min-w-0">
                     <div className="font-semibold truncate">{t.title ?? "—"}</div>
-                    <div className="text-xs text-zinc-400 truncate">{t.slug ?? t.id}</div>
+                    <div className="text-[11px] text-zinc-500 truncate">
+                      {t.slug ?? t.id}
+                    </div>
                   </div>
 
-                  <div className="col-span-2 text-sm text-zinc-200">
-                    {t.start_date ? new Date(t.start_date).toLocaleString() : "—"}
+                  {/* Start */}
+                  <div className="col-span-3 text-[13px] text-zinc-200">
+                    {fmtDate(t.start_date)}
                   </div>
 
-                  <div className="col-span-2">
-                    <span className="rounded-full border border-zinc-700/70 px-2 py-1 text-xs text-zinc-200">
-                      {t.type ?? "—"}
-                    </span>
-                    {t.status && (
-                      <span className="ml-2 rounded-full border border-zinc-700/70 px-2 py-1 text-xs text-zinc-400">
-                        {t.status}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="col-span-2 text-right font-semibold">
-                    {money(Number(t.prize_pool ?? 0))}
-                  </div>
-
-                  <div className="col-span-2 text-right">
-                    <PrizeTop3 t={t} />
+                  {/* Type / Status */}
+                  <div className="col-span-3 flex items-center gap-2">
+                    <TypePill type={t.type} />
+                    <StatusPill status={t.status} />
                     {t.winners_count ? (
-                      <div className="mt-2 text-[11px] text-zinc-500">Winners: {t.winners_count}</div>
+                      <span className="ml-1 text-[11px] text-zinc-500">
+                        Winners: {t.winners_count}
+                      </span>
                     ) : null}
                   </div>
 
-                  <div className="col-span-1 text-right">
-                    <div className="flex flex-col items-end gap-2">
-                      <Link
-                        href={`/admin/tournaments/${t.id}/edit`}
-                        className="rounded-md border border-zinc-700/70 px-2 py-1 text-xs text-yellow-300 hover:bg-zinc-900"
-                      >
-                        Edit
-                      </Link>
-                      <Link
-                        href={`/admin/tournaments/${t.id}/registrations`}
-                        className="rounded-md border border-zinc-700/70 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-900"
-                      >
-                        Reg
-                      </Link>
-                      <Link
-                        href={`/admin/tournaments/${t.id}/results`}
-                        className="rounded-md border border-zinc-700/70 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-900"
-                      >
-                        Res
-                      </Link>
-                    </div>
+                  {/* Prize pool */}
+                  <div className="col-span-1 text-right text-[13px] font-semibold">
+                    {money(Number(t.prize_pool ?? 0))}
                   </div>
-                </div>
+
+                  {/* Open chevron */}
+                  <div className="col-span-1 text-right text-zinc-400">
+                    <span className="inline-flex items-center justify-end gap-1 text-[12px] hover:text-zinc-200">
+                      Open <span aria-hidden>→</span>
+                    </span>
+                  </div>
+                </Link>
               ))}
 
               {items.length === 0 && (

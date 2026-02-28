@@ -1,448 +1,334 @@
-// app/admin/tournaments/[id]/registrations/page.tsx
+// app/admin/demo-submissions/page.tsx
 import Link from "next/link";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
 
-type Row = {
-  registration_id: string;
-  tournament_id: string;
-  user_id: string | null;
-  status: string | null;
-  details_submitted: boolean | null;
-  registered_at: string | null;
-  full_name: string | null;
-  email: string | null;
-  platform: string | null;
-  login: string | null;
-  server: string | null;
-  investor_password: string | null;
+type SearchParams = {
+  tournament?: string;
+  status?: string;
 };
 
-type CredRow = {
-  user_id: string;
-  platform: string | null;
-  login: string | null;
-  investor_password: string | null;
-  server: string | null;
-};
+export const dynamic = "force-dynamic";
 
-function formatDate(iso: string | null) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleString();
-}
-
-function buildQueryString(params: Record<string, string | number | undefined | null>) {
-  const usp = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v === undefined || v === null || v === "") continue;
-    usp.set(k, String(v));
-  }
-  const s = usp.toString();
-  return s ? `?${s}` : "";
-}
-
-async function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anon) throw new Error("Missing env vars: NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY");
-
-  const cookieStore = await cookies();
-
-  return createServerClient(url, anon, {
-    cookies: {
-      get(name: string) {
-        return cookieStore.get(name)?.value;
-      },
-      set() {},
-      remove() {},
-    },
-  });
-}
-
-/** ✅ Approve: فقط بعد pending_review */
-async function approveRegistrationAction(formData: FormData) {
+/**
+ * ✅ Approve/Reject from the global queue
+ * - Updates tournament_registrations (this is what affects the client)
+ * - Updates tournament_credentials (for demo review tracking)
+ */
+async function updateStatus(formData: FormData) {
   "use server";
 
-  const registrationId = String(formData.get("registration_id") || "");
+  const credentialId = String(formData.get("credential_id") || "");
   const tournamentId = String(formData.get("tournament_id") || "");
+  const userId = String(formData.get("user_id") || "");
+  const action = String(formData.get("action") || ""); // approve | reject
+  const returnTo = String(formData.get("return_to") || "/admin/demo-submissions");
 
-  const back = `/admin/tournaments/${tournamentId}/registrations`;
+  if (!credentialId || !tournamentId || !userId || !action) return;
 
-  if (!registrationId || !tournamentId) redirect(`${back}?msg=missing_id`);
-
-  const supabase = await getSupabase();
+  const supabase = await createClient();
 
   const { data: userRes } = await supabase.auth.getUser();
-  if (!userRes?.user) redirect(`${back}?msg=login_required`);
+  if (!userRes?.user) return;
 
-  const { error } = await supabase
+  const decidedBy = userRes.user.id;
+  const decidedAt = new Date().toISOString();
+  
+
+  // 1) Update tournament_registrations (THIS affects the client)
+  const regPayload =
+    action === "approve"
+      ? {
+          status: "approved",
+          admin_decision: "APPROVED",
+          decided_at: decidedAt,
+          decided_by: decidedBy,
+        }
+      : {
+          status: "rejected",
+          admin_decision: "REJECTED",
+          decided_at: decidedAt,
+          decided_by: decidedBy,
+        };
+
+  // ✅ Same safety as your per-tournament page: only decide if pending_review
+  await supabase
     .from("tournament_registrations")
-    .update({
-      status: "approved",
-      admin_decision: "APPROVED",
-      decided_at: new Date().toISOString(),
-      decided_by: userRes.user.id,
-    })
-    .eq("id", registrationId)
-    
-
-  if (error) redirect(`${back}?msg=approve_failed`);
-
-  revalidatePath(back);
-  redirect(`${back}?msg=approved`);
-}
-
-/** ❌ Reject */
-async function rejectRegistrationAction(formData: FormData) {
-  "use server";
-
-  const registrationId = String(formData.get("registration_id") || "");
-  const tournamentId = String(formData.get("tournament_id") || "");
-
-  const back = `/admin/tournaments/${tournamentId}/registrations`;
-
-  if (!registrationId || !tournamentId) redirect(`${back}?msg=missing_id`);
-
-  const supabase = await getSupabase();
-
-  const { data: userRes } = await supabase.auth.getUser();
-  if (!userRes?.user) redirect(`${back}?msg=login_required`);
-
-  const { error } = await supabase
-    .from("tournament_registrations")
-    .update({
-      status: "rejected",
-      admin_decision: "REJECTED",
-      decided_at: new Date().toISOString(),
-      decided_by: userRes.user.id,
-    })
-    .eq("id", registrationId)
+    .update(regPayload)
+    .eq("tournament_id", tournamentId)
+    .eq("user_id", userId)
     .eq("status", "pending_review");
 
-  if (error) redirect(`${back}?msg=reject_failed`);
+  // 2) Update tournament_credentials (queue item itself)
+  const credStatus = action === "approve" ? "approved" : "rejected";
 
-  revalidatePath(back);
-  redirect(`${back}?msg=rejected`);
+  await supabase
+    .from("tournament_credentials")
+    .update({
+      status: credStatus,
+      reviewed_at: decidedAt,
+      reviewed_by: decidedBy,
+    })
+    .eq("id", credentialId);
+
+  revalidatePath("/admin/demo-submissions");
+  redirect(returnTo);
 }
 
-export default async function AdminTournamentRegistrationsPage({
-  params,
+function badge(status: string) {
+  const s = (status || "").toLowerCase();
+  const base = "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium";
+  if (s === "approved") return `${base} bg-green-500/15 text-green-300 ring-1 ring-green-500/30`;
+  if (s === "rejected") return `${base} bg-red-500/15 text-red-300 ring-1 ring-red-500/30`;
+  if (s === "submitted") return `${base} bg-yellow-500/15 text-yellow-300 ring-1 ring-yellow-500/30`;
+  return `${base} bg-white/10 text-white/80 ring-1 ring-white/15`;
+}
+
+export default async function Page({
   searchParams,
 }: {
-  params: Promise<{ id: string }>;
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  searchParams?: Promise<SearchParams>;
 }) {
-  const { id: tournamentId } = await params;
-  const sp = (await searchParams) || {};
+  const sp = (await searchParams) ?? {};
+  const tournamentFilter = typeof sp.tournament === "string" ? sp.tournament : "";
+  const statusFilter = typeof sp.status === "string" ? sp.status.toLowerCase() : "";
 
-  const qRaw = Array.isArray(sp.q) ? sp.q[0] : sp.q;
-  const statusRaw = Array.isArray(sp.status) ? sp.status[0] : sp.status;
-  const pageRaw = Array.isArray(sp.page) ? sp.page[0] : sp.page;
-  const msgRaw = Array.isArray(sp.msg) ? sp.msg[0] : sp.msg;
+  const supabase = await createClient();
 
-  const q = (qRaw || "").trim();
-  const status = (statusRaw || "all").trim();
-  const page = Math.max(1, parseInt(pageRaw || "1", 10) || 1);
+  // ✅ 1) must be signed in
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/signin?next=/admin/demo-submissions");
 
-  const pageSize = 25;
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
+  // ✅ 2) admin check
+  const { data: isAdminRow } = await supabase
+    .from("admins")
+    .select("user_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-  const backUrl = `/admin/tournaments/${tournamentId}/registrations${buildQueryString({ q, status, page })}`;
+  if (!isAdminRow) redirect("/");
 
-  let supabase;
-  try {
-    supabase = await getSupabase();
-  } catch (e: any) {
-    return (
-      <main className="min-h-screen bg-black text-white">
-        <div className="mx-auto max-w-6xl px-6 py-10">
-          <h1 className="text-2xl font-semibold">Registrations</h1>
-          <p className="mt-3 text-zinc-400">{e?.message || "Missing env vars"}</p>
-          <div className="mt-6">
-            <Link className="text-yellow-400 hover:underline" href={`/admin/tournaments`}>
-              ← Back to Tournaments
-            </Link>
-          </div>
-        </div>
-      </main>
-    );
-  }
+  // ✅ 3) tournaments dropdown
+  const { data: tournaments } = await supabase
+    .from("tournaments")
+    .select("id,title")
+    .order("created_at", { ascending: false });
 
-  // Tournament title (optional nice header)
-  const { data: tData } = await supabase.from("tournaments").select("title").eq("id", tournamentId).single();
-  const tournamentTitle = (tData as any)?.title ?? tournamentId;
-
-  // Count
-  let countQuery = supabase
-    .from("admin_tournament_registrants")
-    .select("registration_id", { count: "exact", head: true })
-    .eq("tournament_id", tournamentId);
-
-  if (status !== "all") countQuery = countQuery.eq("status", status);
-
-  if (q) {
-    const escaped = q.replace(/"/g, '\\"');
-    countQuery = countQuery.or(`full_name.ilike."%${escaped}%",email.ilike."%${escaped}%"`);
-  }
-
-  const { count: totalCount } = await countQuery;
-
-  // Data
-  let dataQuery = supabase
-    .from("admin_tournament_registrants")
-    .select("registration_id,tournament_id,user_id,status,details_submitted,registered_at,full_name,email,platform,login,server,investor_password")
-    .eq("tournament_id", tournamentId)
-    .order("registered_at", { ascending: false })
-    .range(from, to);
-
-  if (status !== "all") dataQuery = dataQuery.eq("status", status);
-
-  if (q) {
-    const escaped = q.replace(/"/g, '\\"');
-    dataQuery = dataQuery.or(`full_name.ilike."%${escaped}%",email.ilike."%${escaped}%"`);
-  }
-
-  const { data, error } = await dataQuery;
-
-  if (error) {
-    return (
-      <main className="min-h-screen bg-black text-white">
-        <div className="mx-auto max-w-6xl px-6 py-10">
-          <h1 className="text-2xl font-semibold">Registrations</h1>
-          <pre className="mt-3 rounded-2xl border border-red-900/60 bg-red-950/30 p-4 text-sm text-red-200 overflow-auto">
-            {error.message}
-          </pre>
-        </div>
-      </main>
-    );
-  }
-
-  const rows = (data || []) as Row[];
-// ---- Credentials (demo accounts) ----
-const userIds = Array.from(new Set(rows.map((r) => r.user_id).filter(Boolean))) as string[];
-
-const credsByUserId = new Map<string, CredRow>();
-
-if (userIds.length) {
-  const { data: credData, error: credErr } = await supabase
+  // ✅ 4) demo submissions (from tournament_credentials)
+  let q = supabase
     .from("tournament_credentials")
-    .select("user_id,platform,login,investor_password,server")
-    .eq("tournament_id", tournamentId)
-    .in("user_id", userIds);
+    .select(
+      `
+      id,
+      tournament_id,
+      user_id,
+      platform,
+      login,
+      investor_password,
+      server,
+      status,
+      created_at,
+      reviewed_at,
+      review_note,
+      tournaments:tournament_id ( id, title ),
+      profiles:user_id ( id, email, full_name, username )
+    `
+    )
+    .order("created_at", { ascending: false });
 
-  if (!credErr) {
-    (credData as CredRow[] | null)?.forEach((c) => {
-      if (c?.user_id) credsByUserId.set(c.user_id, c);
-    });
-  }
-}
+  if (tournamentFilter) q = q.eq("tournament_id", tournamentFilter);
+  if (statusFilter) q = q.eq("status", statusFilter);
 
-  const total = totalCount || 0;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const { data: rows, error } = await q;
 
-  const baseParams = { q, status };
-  const prevHref = page > 1 ? `/admin/tournaments/${tournamentId}/registrations${buildQueryString({ ...baseParams, page: page - 1 })}` : null;
-  const nextHref = page < totalPages ? `/admin/tournaments/${tournamentId}/registrations${buildQueryString({ ...baseParams, page: page + 1 })}` : null;
-
-  const msg =
-    msgRaw === "approved"
-      ? "✅ Approved"
-      : msgRaw === "rejected"
-      ? "✅ Rejected"
-      : msgRaw === "approve_failed"
-      ? "❌ Approve failed"
-      : msgRaw === "reject_failed"
-      ? "❌ Reject failed"
-      : msgRaw === "login_required"
-      ? "⚠️ لازم تكون مسجّل دخول عشان تعمل Approve/Reject"
-      : msgRaw === "missing_id"
-      ? "⚠️ Missing registration id"
-      : null;
+  // ✅ 5) Stats
+  const totalSubmitted = (rows || []).filter((r: any) => (r.status || "").toLowerCase() === "submitted").length;
 
   return (
     <main className="min-h-screen bg-black text-white">
-      <div className="mx-auto max-w-6xl px-6 py-10">
-        <div className="flex items-start justify-between gap-4">
+      <div className="max-w-6xl mx-auto px-6 py-10">
+        <div className="flex items-center justify-between gap-4">
           <div>
-            <Link href="/admin/tournaments" className="text-yellow-400 hover:underline text-sm">
-              ← Back to Tournaments
-            </Link>
-
-            <h1 className="text-3xl font-bold mt-3">Registrations</h1>
-            <p className="mt-2 text-zinc-400">
-              Tournament: <span className="text-white">{tournamentTitle}</span>
+            <h1 className="text-2xl font-bold">Demo Submissions</h1>
+            <p className="text-white/60 text-sm mt-1">
+              Queue of submitted demo credentials for review.
             </p>
-
-            <p className="mt-1 text-zinc-500 text-sm">
-              Showing {Math.min(from + 1, total)}–{Math.min(to + 1, total)} of {total}.
-            </p>
-
-            {msg ? (
-              <div className="mt-3 inline-flex rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-200">
-                {msg}
-              </div>
-            ) : null}
           </div>
-
-          <Link
-            href={`/admin/tournaments/${tournamentId}/edit`}
-            className="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2 text-sm hover:bg-zinc-900"
-          >
-            Edit Tournament
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/admin"
+              className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm hover:bg-white/10"
+            >
+              ← Back to Admin
+            </Link>
+          </div>
         </div>
 
-        {/* Controls */}
-        <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-          <form method="GET" className="flex flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-zinc-400">Search</label>
-              <input
-                name="q"
-                defaultValue={q}
-                placeholder="Name or email..."
-                className="w-[260px] rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm outline-none text-white placeholder:text-zinc-500"
-              />
-            </div>
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="text-white/60 text-xs">Pending (submitted)</div>
+            <div className="text-2xl font-bold mt-1">{totalSubmitted}</div>
+          </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-zinc-400">Status</label>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="text-white/60 text-xs">Filter</div>
+            <div className="text-sm mt-1 text-white/80">Tournament + Status</div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="text-white/60 text-xs">Tip</div>
+            <div className="text-sm mt-1 text-white/80">
+              Start with <span className="font-semibold">submitted</span> only.
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <form className="flex flex-col gap-3 md:flex-row md:items-end">
+            <div className="flex-1">
+              <label className="text-xs text-white/60">Tournament</label>
               <select
-                name="status"
-                defaultValue={status}
-                className="w-[220px] rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm outline-none text-white"
+                name="tournament"
+                defaultValue={tournamentFilter}
+                className="mt-1 w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm outline-none"
               >
-                <option value="all">All</option>
-                <option value="joined_pending">joined_pending</option>
-                <option value="pending_review">pending_review</option>
-                <option value="joined">joined</option>
-                <option value="approved">approved</option>
-                <option value="rejected">rejected</option>
+                <option value="">All tournaments</option>
+                {(tournaments || []).map((t: any) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title}
+                  </option>
+                ))}
               </select>
             </div>
 
-            <button className="rounded-xl bg-yellow-500 text-black px-4 py-2 text-sm font-semibold hover:bg-yellow-400">
+            <div className="w-full md:w-56">
+              <label className="text-xs text-white/60">Status</label>
+              <select
+                name="status"
+                defaultValue={statusFilter}
+                className="mt-1 w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm outline-none"
+              >
+                <option value="">All statuses</option>
+                <option value="submitted">submitted</option>
+                <option value="approved">approved</option>
+                <option value="rejected">rejected</option>
+                <option value="draft">draft</option>
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              className="rounded-xl bg-yellow-500 px-4 py-2 text-sm font-semibold text-black hover:bg-yellow-400"
+            >
               Apply
             </button>
-
-            <Link
-              href={`/admin/tournaments/${tournamentId}/registrations`}
-              className="rounded-xl border border-zinc-800 bg-transparent px-4 py-2 text-sm hover:bg-zinc-900"
-            >
-              Reset
-            </Link>
           </form>
         </div>
 
-        {/* Table */}
-        <div className="mt-6 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950">
-          <div className="overflow-auto">
-            <table className="min-w-[1400px] w-full text-left text-sm">
-              <thead className="bg-zinc-900 text-zinc-200">
+        <div className="mt-6">
+          {error && (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
+              Error: {error.message}
+            </div>
+          )}
+
+          <div className="overflow-hidden rounded-2xl border border-white/10">
+            <table className="w-full text-sm">
+              <thead className="bg-white/5 text-white/70">
                 <tr>
-                  <th className="px-4 py-3">Registered</th>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Email</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Details</th>
-                  <th className="px-4 py-3">Platform</th>
-                  <th className="px-4 py-3">Login</th>
-                  <th className="px-4 py-3">Server</th>
-                  <th className="px-4 py-3">Investor PW</th>
-                  <th className="px-4 py-3">User ID</th>
-                  <th className="px-4 py-3">Action</th>
+                  <th className="text-left p-3">Tournament</th>
+                  <th className="text-left p-3">User</th>
+                  <th className="text-left p-3">Platform</th>
+                  <th className="text-left p-3">Login</th>
+                  <th className="text-left p-3">Server</th>
+                  <th className="text-left p-3">Status</th>
+                  <th className="text-left p-3">Submitted</th>
+                  <th className="text-left p-3">Actions</th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-zinc-800">
-                {rows.length === 0 ? (
-                  <tr>
-                    <td className="px-4 py-6 text-zinc-400" colSpan={11}>
-                      No registrations found.
+              <tbody>
+                {(rows || []).map((r: any) => {
+                  const isSubmitted = (r.status || "").toLowerCase() === "submitted";
+
+                  return (
+                    <tr key={r.id} className="border-t border-white/10">
+                      <td className="p-3">{r.tournaments?.title ?? r.tournament_id}</td>
+
+                      <td className="p-3">
+                        <div className="text-white/90">
+                          {r.profiles?.full_name || r.profiles?.username || "User"}
+                        </div>
+                        <div className="text-xs text-white/50">
+                          {r.profiles?.email ?? r.user_id}
+                        </div>
+                      </td>
+
+                      <td className="p-3">{r.platform}</td>
+                      <td className="p-3">{r.login}</td>
+                      <td className="p-3">{r.server}</td>
+
+                      <td className="p-3">
+                        <span className={badge(r.status)}>{r.status}</span>
+                      </td>
+
+                      <td className="p-3 text-white/70">
+                        {r.created_at ? new Date(r.created_at).toLocaleString() : "-"}
+                      </td>
+
+                      <td className="p-3">
+                        {isSubmitted ? (
+                          <div className="flex gap-2">
+                            <form action={updateStatus}>
+                              <input type="hidden" name="credential_id" value={r.id} />
+                              <input type="hidden" name="tournament_id" value={r.tournament_id} />
+                              <input type="hidden" name="user_id" value={r.user_id} />
+                              <input type="hidden" name="action" value="approve" />
+                              <button
+                                type="submit"
+                                className="px-3 py-1 text-xs rounded-lg bg-green-600 hover:bg-green-500"
+                              >
+                                Approve
+                              </button>
+                            </form>
+
+                            <form action={updateStatus}>
+                              <input type="hidden" name="credential_id" value={r.id} />
+                              <input type="hidden" name="tournament_id" value={r.tournament_id} />
+                              <input type="hidden" name="user_id" value={r.user_id} />
+                              <input type="hidden" name="action" value="reject" />
+                              <button
+                                type="submit"
+                                className="px-3 py-1 text-xs rounded-lg bg-red-600 hover:bg-red-500"
+                              >
+                                Reject
+                              </button>
+                            </form>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-white/50">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {(!rows || rows.length === 0) && (
+                  <tr className="border-t border-white/10">
+                    <td className="p-6 text-white/60" colSpan={8}>
+                      No submissions found for this filter.
                     </td>
                   </tr>
-                ) : (
-                  rows.map((r) => {
-                    const isPendingReview = (r.status || "").toLowerCase() === "pending_review";
-                    const canDecide = isPendingReview && r.details_submitted === true;
-                    const cred = r.user_id ? credsByUserId.get(r.user_id) : null;
-
-                    return (
-                      <tr key={r.registration_id} className="hover:bg-zinc-900/40">
-                        <td className="px-4 py-3 text-zinc-300">{formatDate(r.registered_at)}</td>
-                        <td className="px-4 py-3 text-zinc-200">{r.full_name || "—"}</td>
-                        <td className="px-4 py-3 text-zinc-300">{r.email || "—"}</td>
-
-                        <td className="px-4 py-3 text-zinc-300">{r.status || "—"}</td>
-                        <td className="px-4 py-3 text-zinc-300">{r.details_submitted ? "✅ Yes" : "—"}</td>
-
-                        <td className="px-4 py-3 text-zinc-300">{cred?.platform ?? "—"}</td>
-                        <td className="px-4 py-3 text-zinc-300">{cred?.login ?? "—"}</td>
-                        <td className="px-4 py-3 text-zinc-300">{cred?.server ?? "—"}</td>
-                        <td className="px-4 py-3 text-zinc-300">{cred?.investor_password ?? "—"}</td>
-                        <td className="px-4 py-3 text-xs text-zinc-500">{r.user_id || "—"}</td>
-
-
-                        <td className="px-4 py-3">
-                          {canDecide ? (
-                            <div className="flex items-center gap-2">
-                              <form action={approveRegistrationAction}>
-                                <input type="hidden" name="registration_id" value={r.registration_id} />
-                                <input type="hidden" name="tournament_id" value={tournamentId} />
-                                <button className="rounded-xl bg-yellow-500 text-black px-3 py-1.5 text-xs font-semibold hover:bg-yellow-400">
-                                  Approve
-                                </button>
-                              </form>
-
-                              <form action={rejectRegistrationAction}>
-                                <input type="hidden" name="registration_id" value={r.registration_id} />
-                                <input type="hidden" name="tournament_id" value={tournamentId} />
-                                <button className="rounded-xl border border-red-900/60 bg-red-950/30 px-3 py-1.5 text-xs text-red-200 hover:bg-red-950/50">
-                                  Reject
-                                </button>
-                              </form>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-zinc-500">
-                              {(r.status || "").toLowerCase() === "pending_review" ? "Waiting details ✓" : "—"}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
                 )}
               </tbody>
             </table>
           </div>
 
-          {/* Pagination */}
-          <div className="flex items-center justify-between gap-3 border-t border-zinc-800 bg-zinc-950 px-4 py-3">
-            <div className="text-xs text-zinc-500">
-              Page {page} / {totalPages}
-            </div>
-
-            <div className="flex items-center gap-2">
-              {prevHref ? (
-                <Link href={prevHref} className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs hover:bg-zinc-800">
-                  ← Prev
-                </Link>
-              ) : (
-                <span className="rounded-xl border border-zinc-900 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-600">← Prev</span>
-              )}
-
-              {nextHref ? (
-                <Link href={nextHref} className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs hover:bg-zinc-800">
-                  Next →
-                </Link>
-              ) : (
-                <span className="rounded-xl border border-zinc-900 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-600">Next →</span>
-              )}
-            </div>
+          <div className="mt-4 text-xs text-white/50">
+            Next step: (optional) show registration status + decision notes.
           </div>
         </div>
       </div>

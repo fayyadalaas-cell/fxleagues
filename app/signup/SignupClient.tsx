@@ -97,7 +97,7 @@ export default function SignupClient({ nextUrl }: { nextUrl: string }) {
 
     const safeNext = nextUrl && nextUrl.length > 0 ? nextUrl : "/";
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: {
@@ -113,16 +113,16 @@ export default function SignupClient({ nextUrl }: { nextUrl: string }) {
       },
     });
 
-    setLoading(false);
-
     if (error) {
-      setErrorMsg(error.message);
-      return;
-    }
+  setLoading(false);
+  setErrorMsg(error.message);
+  return;
+}
 
-    // ✅ حاليا: تحقق عبر الإيميل فقط (بدون إعادة تعريف safeNext)
-    router.push(`/verify-email?next=${encodeURIComponent(safeNext)}`);
-    router.refresh();
+// ✅ حاليا: تحقق عبر الإيميل فقط
+router.push(`/verify-email?next=${encodeURIComponent(safeNext)}`);
+router.refresh();
+setLoading(false);
   }
 
   const showUsernameError =

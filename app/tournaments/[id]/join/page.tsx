@@ -14,7 +14,10 @@ export default function JoinTournamentPage() {
 
   // ✅ Normalize: remove trailing numeric suffix after last dash
   // daily-sprint-0217 -> daily-sprint
-  const baseSlug = useMemo(() => tournamentSlug.replace(/-\d+$/, ""), [tournamentSlug]);
+  const baseSlug = useMemo(
+    () => tournamentSlug.replace(/-\d+$/, ""),
+    [tournamentSlug]
+  );
 
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
@@ -22,24 +25,27 @@ export default function JoinTournamentPage() {
   const [user, setUser] = useState<any>(null);
   const [resending, setResending] = useState(false);
 
-useEffect(() => {
-  const checkUser = async () => {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const sessionUser = sessionData?.session?.user ?? null;
+  // ✅ NEW: agreement checkbox
+  const [agreed, setAgreed] = useState(false);
 
-    if (sessionUser) {
-      setUser(sessionUser);
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const sessionUser = sessionData?.session?.user ?? null;
+
+      if (sessionUser) {
+        setUser(sessionUser);
+        setLoading(false);
+        return;
+      }
+
+      const { data } = await supabase.auth.getUser();
+      setUser(data?.user ?? null);
       setLoading(false);
-      return;
-    }
+    };
 
-    const { data } = await supabase.auth.getUser();
-    setUser(data?.user ?? null);
-    setLoading(false);
-  };
-
-  checkUser();
-}, []);
+    checkUser();
+  }, []);
 
   // helper: "daily-sprint" -> "Daily Sprint"
   const toTitleGuess = (s: string) =>
@@ -53,20 +59,26 @@ useEffect(() => {
   const handleJoin = async () => {
     setMessage(null);
 
-    if (!user) {
-  setMessage("Please sign in to join this tournament.");
-  return;
-}
+    // ✅ NEW: require agreement before joining
+    if (!agreed) {
+      setMessage("Please agree to the Terms & Conditions and Privacy Policy to continue.");
+      return;
+    }
 
-if (!user.email_confirmed_at) {
-  setMessage("Your account is not verified yet. Please verify your email before joining.");
-  return;
-}
+    if (!user) {
+      setMessage("Please sign in to join this tournament.");
+      return;
+    }
 
     if (!user.email_confirmed_at) {
-  setMessage("Please verify your email before joining tournaments.");
-  return;
-}
+      setMessage("Your account is not verified yet. Please verify your email before joining.");
+      return;
+    }
+
+    if (!user.email_confirmed_at) {
+      setMessage("Please verify your email before joining tournaments.");
+      return;
+    }
 
     if (!baseSlug) {
       setMessage("Invalid tournament link.");
@@ -123,13 +135,19 @@ if (!user.email_confirmed_at) {
       setJoining(false);
 
       if (error) {
-        if ((error as any).code === "23505") {
-          setMessage("You are already registered in this tournament.");
-        } else {
-          setMessage(`Join failed: ${error.message} (code: ${(error as any).code ?? "n/a"})`);
-        }
-        return;
-      }
+          if ((error as any).code === "23505") {
+           setMessage("You are already registered in this tournament.");
+           } else if (error.message?.includes("banned")) {
+             setMessage("Your account has been restricted. Please contact support.");
+           } else if (error.message?.includes("closed")) {
+            setMessage("This tournament is closed.");
+           } else if (error.message?.includes("not found")) {
+            setMessage("Tournament not found.");
+           } else {
+           setMessage("Unable to join the tournament. Please try again later.");
+           }
+           return;
+              }
 
       setMessage("Successfully joined the tournament ✅");
       // ✅ نرجع للتفاصيل على baseSlug (عشان ما يصير mismatch مع suffix)
@@ -177,61 +195,81 @@ if (!user.email_confirmed_at) {
             </div>
           </div>
         ) : (
-  <div>
-    {/* 🔒 Email not verified warning */}
-    {user && !user.email_confirmed_at && (
-      <div className="mb-4 rounded-lg border border-zinc-700 bg-zinc-800 p-4">
-        <div className="text-sm text-zinc-200">
-          Your email is not verified yet. Please verify your email before joining tournaments.
-        </div>
+          <div>
+            {/* ✅ NEW: Terms/Privacy agreement (single checkbox) */}
+            <div className="mb-4 rounded-lg border border-zinc-700 bg-zinc-800 p-4">
+              <label className="flex items-start gap-3 text-sm text-zinc-200">
+                <input
+                  type="checkbox"
+                  checked={agreed}
+                  onChange={(e) => setAgreed(e.target.checked)}
+                  className="mt-1 h-4 w-4 accent-yellow-500"
+                />
+                <span>
+                  I agree to the{" "}
+                  <a href="/terms" className="text-yellow-400 hover:underline">
+                    Terms & Conditions
+                  </a>{" "}
+                  and{" "}
+                  <a href="/privacy" className="text-yellow-400 hover:underline">
+                    Privacy Policy
+                  </a>
+                  .
+                </span>
+              </label>
+            </div>
 
-        <button
-          onClick={async () => {
-            setResending(true);
-            const email = user?.email;
-            if (email) {
-              await supabase.auth.resend({
-                type: "signup",
-                email,
-              });
-              setMessage(
-                "Verification email sent again. Please check your inbox (including spam)."
-              );
-            }
-            setResending(false);
-          }}
-          disabled={resending}
-          className="mt-3 rounded-lg bg-yellow-500 px-4 py-2 font-semibold text-black hover:bg-yellow-400 transition disabled:opacity-60"
-        >
-          {resending ? "Sending..." : "Resend verification email"}
-        </button>
-      </div>
-    )}
+            {/* 🔒 Email not verified warning */}
+            {user && !user.email_confirmed_at && (
+              <div className="mb-4 rounded-lg border border-zinc-700 bg-zinc-800 p-4">
+                <div className="text-sm text-zinc-200">
+                  Your email is not verified yet. Please verify your email before joining tournaments.
+                </div>
 
-    <button
-      onClick={handleJoin}
-      disabled={joining || (user && !user.email_confirmed_at)}
-      className="w-full bg-yellow-500 text-black font-semibold py-3 rounded-lg hover:bg-yellow-400 transition disabled:opacity-60"
-    >
-      {joining ? "Joining..." : "Confirm Join"}
-    </button>
+                <button
+                  onClick={async () => {
+                    setResending(true);
+                    const email = user?.email;
+                    if (email) {
+                      await supabase.auth.resend({
+                        type: "signup",
+                        email,
+                      });
+                      setMessage(
+                        "Verification email sent again. Please check your inbox (including spam)."
+                      );
+                    }
+                    setResending(false);
+                  }}
+                  disabled={resending}
+                  className="mt-3 rounded-lg bg-yellow-500 px-4 py-2 font-semibold text-black hover:bg-yellow-400 transition disabled:opacity-60"
+                >
+                  {resending ? "Sending..." : "Resend verification email"}
+                </button>
+              </div>
+            )}
 
-    {message && (
-      <div className="mt-4 text-sm text-zinc-300">{message}</div>
-    )}
+            <button
+              onClick={handleJoin}
+              disabled={joining || (user && !user.email_confirmed_at) || !agreed}
+              className="w-full bg-yellow-500 text-black font-semibold py-3 rounded-lg hover:bg-yellow-400 transition disabled:opacity-60"
+            >
+              {joining ? "Joining..." : "Confirm Join"}
+            </button>
+
+            {message && (
+  <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100">
+    {message}
   </div>
 )}
+          </div>
+        )}
 
         <div className="mt-6 text-xs text-zinc-500">
-          Registration will be stored in the <strong>tournament_registrations</strong> table via the{" "}
-          <strong>join_tournament</strong> RPC.
-          <div className="mt-2">
-            <span className="text-zinc-600">Debug:</span>{" "}
-            <span className="text-zinc-400">
-              slug="{tournamentSlug}" → baseSlug="{baseSlug}"
-            </span>
-          </div>
-        </div>
+  By joining this tournament, you confirm that you meet the eligibility requirements 
+  and agree to comply with the platform’s Terms & Conditions. 
+  Trading involves risk and may not be suitable for all participants.
+</div>
       </div>
     </main>
   );

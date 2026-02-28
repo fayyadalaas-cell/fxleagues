@@ -745,41 +745,6 @@ className="group relative overflow-hidden rounded-2xl min-h-[148px] border borde
   </div>
 </section>
 
-{/* NEWSLETTER SECTION */}
-<section className="max-w-7xl mx-auto px-6 pb-24">
-  <div className="relative overflow-hidden rounded-3xl border border-zinc-800 bg-gradient-to-b from-black via-zinc-950/50 to-black p-10 text-center shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_30px_90px_rgba(0,0,0,0.9)]">
-
-    {/* subtle glow */}
-    <div className="pointer-events-none absolute -top-32 left-1/2 -translate-x-1/2 h-72 w-72 rounded-full bg-yellow-500/10 blur-3xl" />
-
-    <h3 className="text-2xl md:text-3xl font-extrabold">
-      Subscribe for upcoming tournaments
-    </h3>
-
-    <p className="mt-3 text-zinc-400 max-w-xl mx-auto text-sm">
-      Be the first to know about new competitions, prize increases, and special events.
-    </p>
-
-    <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
-      <input
-        type="email"
-        placeholder="Enter your email"
-        className="w-full rounded-xl border border-zinc-800 bg-black/40 px-4 py-3 text-sm focus:outline-none focus:border-yellow-500 transition"
-      />
-
-      <button
-        className="w-full sm:w-auto bg-yellow-500 text-black px-6 py-3 rounded-xl font-bold text-sm hover:bg-yellow-400 transition"
-      >
-        Subscribe
-      </button>
-    </div>
-
-    <div className="mt-4 text-xs text-zinc-600">
-      No spam. Unsubscribe anytime.
-    </div>
-  </div>
-</section>
-
 
 {/* SPONSORS + CTA ... نفس كودك بدون تغيير */}
 </main>

@@ -80,61 +80,71 @@ export default function Next7DaysFromDb({ title = "Next 7 Days", limit = 7 }: Pr
   const [joinedIds, setJoinedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    let alive = true;
+  let alive = true;
 
-    (async () => {
-      try {
-        setLoading(true);
+  (async () => {
+    try {
+      setLoading(true);
 
-        // 1) tournaments
-        const db = await fetchTournaments();
-        const mapped = (db ?? []).map(toRow);
-        if (!alive) return;
-        setRows(mapped);
+      // 1) tournaments
+      const db = await fetchTournaments();
+      const mapped = (db ?? []).map(toRow);
+      if (!alive) return;
+      setRows(mapped);
 
-        // 2) session
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (!alive) return;
+      // 2) session
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!alive) return;
 
-        if (!session) {
-          setJoinedIds(new Set());
-          return;
-        }
-
-        // 3) registrations for this user (only for tournaments shown)
-        const tournamentIds = mapped.map((x) => x.id);
-        if (tournamentIds.length === 0) {
-          setJoinedIds(new Set());
-          return;
-        }
-
-        const { data: regs, error } = await supabase
-          .from("tournament_registrations")
-          .select("tournament_id")
-          .eq("user_id", session.user.id)
-          .in("tournament_id", tournamentIds);
-
-        if (!alive) return;
-
-        if (error) {
-          console.error("Failed to load registrations:", error.message);
-          setJoinedIds(new Set());
-          return;
-        }
-
-        const s = new Set<string>((regs ?? []).map((r: any) => r.tournament_id));
-        setJoinedIds(s);
-      } finally {
-        if (alive) setLoading(false);
+      if (!session) {
+        setJoinedIds(new Set());
+        return;
       }
-    })();
 
-    return () => {
-      alive = false;
-    };
-  }, []);
+      // 3) registrations for this user (only for tournaments shown)
+      const tournamentIds = mapped.map((x) => x.id);
+      if (tournamentIds.length === 0) {
+        setJoinedIds(new Set());
+        return;
+      }
+
+      const { data: regs, error } = await supabase
+        .from("tournament_registrations")
+        .select("tournament_id")
+        .eq("user_id", session.user.id)
+        .in("tournament_id", tournamentIds);
+
+      if (!alive) return;
+
+      if (error) {
+        console.error("Failed to load registrations:", error.message);
+        setJoinedIds(new Set());
+        return;
+      }
+
+      const s = new Set<string>((regs ?? []).map((r: any) => r.tournament_id));
+      setJoinedIds(s);
+    } catch (err: any) {
+      // ✅ أهم سطر: تجاهل AbortError (يصير مع HMR/StrictMode)
+      if (err?.name === "AbortError") return;
+
+      console.error("Next7DaysFromDb load failed:", err);
+      if (!alive) return;
+
+      // ما نخرب UI — خليها فاضية بدل ما تضل Loading للأبد
+      setRows([]);
+      setJoinedIds(new Set());
+    } finally {
+      if (alive) setLoading(false);
+    }
+  })();
+
+  return () => {
+    alive = false;
+  };
+}, []);
 
   // ✅ Top (limit) upcoming within 30 days + LIVE
   const topN = useMemo(() => {
