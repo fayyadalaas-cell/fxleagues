@@ -2,12 +2,9 @@
 
 import Link from "next/link";
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 
 export default function SignInClient({ nextUrl = "/" }: { nextUrl?: string }) {
-  const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -40,11 +37,9 @@ export default function SignInClient({ nextUrl = "/" }: { nextUrl?: string }) {
       return;
     }
 
-    // ✅ التحويل الصحيح: إذا nextUrl موجود استخدمه، غير هيك روح /account
-    const target = (nextUrl || "/").trim() || "/";
-
-    // أفضل للثبات مع Next/Supabase sessions
-    window.location.href = target;
+    // ✅ بعد نجاح تسجيل الدخول: ارجع دائمًا للصفحة الرئيسية
+    window.location.href = "/";
+    return;
   }
 
   async function handleForgotPassword() {
@@ -105,7 +100,6 @@ export default function SignInClient({ nextUrl = "/" }: { nextUrl?: string }) {
             <div className="flex items-center justify-between">
               <label className="text-sm text-zinc-300">Password</label>
 
-              {/* ✅ Forgot password */}
               <button
                 type="button"
                 onClick={handleForgotPassword}
