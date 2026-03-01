@@ -41,7 +41,7 @@ export default function SignInClient({ nextUrl = "/" }: { nextUrl?: string }) {
     }
 
     // ✅ التحويل الصحيح: إذا nextUrl موجود استخدمه، غير هيك روح /account
-    const target = nextUrl && nextUrl !== "/" ? nextUrl : "/account";
+    const target = (nextUrl || "/").trim() || "/";
 
     // أفضل للثبات مع Next/Supabase sessions
     window.location.href = target;
