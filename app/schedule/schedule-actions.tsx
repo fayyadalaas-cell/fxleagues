@@ -11,10 +11,6 @@ type Props = {
     id: string;
     slug: string;
     title: string;
-    type: string;
-    prize: number;
-    dateLabel: string;
-    time: string;
   };
 };
 
@@ -31,24 +27,35 @@ export default function ScheduleActions({ tournament }: Props) {
 
     setLoading(true);
 
-    const { error } = await supabase.from("tournament_registrations").insert({
-  user_id: user.id,
-  tournament_id: tournament.id,
-});
+    // ✅ استخدم RPC (مش insert مباشر)
+    const { error } = await supabase.rpc("join_tournament", {
+      p_tournament_id: tournament.id,
+    });
 
     setLoading(false);
 
     if (error) {
-      // duplicate (unique user_id + tournament_id)
-      if (error.code === "23505" || error.message.toLowerCase().includes("duplicate")) {
+      const msg = (error.message || "").toLowerCase();
+
+      if (error.code === "23505" || msg.includes("duplicate")) {
         alert("You already joined this tournament.");
         return;
       }
+
+      // رسائل متوقعة من الـ RPC (حسب ما انت حاطط داخلها)
+      if (msg.includes("banned") || msg.includes("restricted")) {
+        alert("Your account is restricted from joining tournaments.");
+        return;
+      }
+      if (msg.includes("closed") || msg.includes("ended") || msg.includes("completed")) {
+        alert("This tournament has ended and cannot be joined.");
+        return;
+      }
+
       alert(error.message);
       return;
     }
 
-    // ✅ بعد الانضمام روح على الداش
     router.push("/account");
   }
 

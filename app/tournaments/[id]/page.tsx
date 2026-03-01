@@ -59,9 +59,10 @@ function logoPathFromKey(key?: string | null) {
     fxtm: "/brokers/fxtm.png",
     fxm: "/brokers/fxtm.png",
     vantage: "/brokers/vantage.png",
+    fxleagues: "/brokers/fxleagues.png",
   };
 
-  return map[k] || "/brokers/exness.png"; // fallback افتراضي
+  return map[k] || "/logo.png";
 }
 
 type RegStage = "not_joined" | "joined" | "pending_review" | "approved" | "rejected";
@@ -107,6 +108,51 @@ function buildFallbackPrizes(prizePool: number, winnersCount: number) {
   return raw.map((amount, i) => ({ position: i + 1, amount }));
 }
 
+function computeStatus(start: string | null, end: string | null) {
+  const now = new Date();
+
+  if (!start || !end) return "UPCOMING";
+
+  const s = new Date(start);
+  const e = new Date(end);
+
+  if (now < s) return "UPCOMING";
+  if (now >= s && now <= e) return "LIVE";
+  return "ENDED";
+}
+
+function SponsorLogo({
+  src,
+  alt,
+  size = "md",
+}: {
+  src: string;
+  alt: string;
+  size?: "sm" | "md";
+}) {
+  const box =
+    size === "sm"
+      ? "h-12 w-20 md:h-12 md:w-24" // للهيدر
+      : "h-14 w-36"; // للسايدبار
+
+  return (
+    <div
+      className={[
+        box,
+        "rounded-xl bg-white/95",
+        "border border-yellow-500/35", // ✅ برواز ذهبي خفيف
+        "shadow-[0_0_0_1px_rgba(234,179,8,0.10),0_10px_25px_rgba(0,0,0,0.55)]",
+        "p-2",
+        "flex items-center justify-center",
+        "relative",
+        "overflow-hidden",
+      ].join(" ")}
+    >
+      <img src={src} alt={alt} className="absolute inset-0 w-full h-full object-cover" />
+    </div>
+  );
+}
+
 export default function TournamentDetailsPage() {
   const router = useRouter();
   const params = useParams();
@@ -134,7 +180,8 @@ export default function TournamentDetailsPage() {
   const [investorPassword, setInvestorPassword] = useState("");
   const [server, setServer] = useState("");
   const [credentialsSubmitted, setCredentialsSubmitted] = useState(false);
-    // ✅ Refresh join/status from DB (single source of truth)
+
+  // ✅ Refresh join/status from DB (single source of truth)
   async function refreshRegistration(tournamentId: string) {
     const {
       data: { session },
@@ -179,8 +226,8 @@ export default function TournamentDetailsPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-  "id,title,description,start_date,end_date,prize_pool,created_at,slug,status,type,sponsor_name,sponsor_logo_key,sponsor_logo_url,entry,winners_count,prize_breakdown,demo_signup_url,platform_download_url"
-)
+          "id,title,description,start_date,end_date,prize_pool,created_at,slug,status,type,sponsor_name,sponsor_logo_key,sponsor_logo_url,entry,winners_count,prize_breakdown,demo_signup_url,platform_download_url"
+        )
         .eq("slug", slug)
         .limit(1)
         .maybeSingle();
@@ -390,7 +437,7 @@ export default function TournamentDetailsPage() {
   if (loading) {
     return (
       <main className="min-h-screen bg-black text-white">
-        <div className="max-w-6xl mx-auto px-6 py-16">
+        <div className="max-w-7xl mx-auto px-6 py-16">
           <Link href="/schedule" className="text-yellow-400 hover:underline">
             ← Back to Schedule
           </Link>
@@ -441,7 +488,7 @@ export default function TournamentDetailsPage() {
   }
 
   const sponsorName = t.sponsor_name || "FXLeagues";
-  const status = (t.status || "UPCOMING").toUpperCase();
+  const status = computeStatus(t.start_date, t.end_date);
   const type = t.type || "Daily";
   const entry = t.entry || "FREE";
   const prizePool = t.prize_pool ?? 0;
@@ -475,17 +522,17 @@ export default function TournamentDetailsPage() {
   };
 
   const platformInfo = {
-  platformName:
-    sponsorKey === "exness"
-      ? "MetaTrader 5 (Exness)"
-      : sponsorKey === "icmarkets"
-      ? "MetaTrader 5 (IC Markets)"
-      : sponsorKey === "vantage"
-      ? "MetaTrader 5 (Vantage)"
-      : "MetaTrader 5",
-  downloadUrl: t.platform_download_url || platformLinks[sponsorKey]?.downloadUrl || "#",
-  demoSignupUrl: t.demo_signup_url || platformLinks[sponsorKey]?.demoSignupUrl || "#",
-};
+    platformName:
+      sponsorKey === "exness"
+        ? "MetaTrader 5 (Exness)"
+        : sponsorKey === "icmarkets"
+        ? "MetaTrader 5 (IC Markets)"
+        : sponsorKey === "vantage"
+        ? "MetaTrader 5 (Vantage)"
+        : "MetaTrader 5",
+    downloadUrl: t.platform_download_url || platformLinks[sponsorKey]?.downloadUrl || "#",
+    demoSignupUrl: t.demo_signup_url || platformLinks[sponsorKey]?.demoSignupUrl || "#",
+  };
 
   const LEVERAGE = "1:100";
   const STARTING_BALANCE = "$10,000";
@@ -493,11 +540,11 @@ export default function TournamentDetailsPage() {
   const stage = getStage(alreadyJoined, registrationStatus);
 
   const steps = [
-  { key: "download", title: "Download Platform", action: "download" },
-  { key: "demo", title: "Create Demo Account", action: "demo" },
-  { key: "submit", title: "Submit Trading Details", action: "submit" },
-  { key: "review", title: "Wait for Approval", action: "review" },
-] as const;
+    { key: "download", title: "Download Platform", action: "download" },
+    { key: "demo", title: "Create Demo Account", action: "demo" },
+    { key: "submit", title: "Submit Trading Details", action: "submit" },
+    { key: "review", title: "Wait for Approval", action: "review" },
+  ] as const;
 
   function stepDone(key: (typeof steps)[number]["key"]) {
     if (stage === "not_joined") return false;
@@ -526,6 +573,40 @@ export default function TournamentDetailsPage() {
       ? "Approved ✅ You’re ready to trade."
       : "Rejected ❌ Please resubmit correct trading details.";
 
+      // ✅ Sponsor CTA (Visit Broker + Open Live Account) based on sponsorKey
+const sponsorCtas: Record<
+  string,
+  { websiteUrl: string; openAccountUrl: string; name?: string }
+> = {
+  exness: {
+    websiteUrl: "https://www.exness.com/",
+    openAccountUrl: "https://www.exness.com/open-account/",
+    name: "Exness",
+  },
+  icmarkets: {
+    websiteUrl: "https://www.icmarkets.com/",
+    openAccountUrl: "https://www.icmarkets.com/global/en/open-trading-account",
+    name: "IC Markets",
+  },
+  vantage: {
+    websiteUrl: "https://www.vantagemarkets.com/",
+    openAccountUrl: "https://www.vantagemarkets.com/open-live-account/",
+    name: "Vantage",
+  },
+  fxleagues: {
+    websiteUrl: "https://fxleagues.com",
+    openAccountUrl: "https://fxleagues.com",
+    name: "FXLeagues",
+  },
+};
+
+const sponsorCta = sponsorCtas[sponsorKey] || sponsorCtas["fxleagues"];
+const sponsorLogoSrc =
+  (t.sponsor_logo_url &&
+    (t.sponsor_logo_url.startsWith("http") || t.sponsor_logo_url.startsWith("/"))
+    ? t.sponsor_logo_url
+    : logoPathFromKey(sponsorKey));
+
   // ✅ Prize breakdown: DB first, fallback second
   const dbPrizes = Array.isArray((t as any).prize_breakdown) ? ((t as any).prize_breakdown as any[]) : [];
   const winnersCount = Math.max(1, Number(t.winners_count || dbPrizes.length || 1));
@@ -537,216 +618,165 @@ export default function TournamentDetailsPage() {
           .sort((a, b) => a.position - b.position)
       : buildFallbackPrizes(prizePool, winnersCount);
 
+  // podium helpers
+  const p1 = finalPrizes.find((p) => p.position === 1);
+  const p2 = finalPrizes.find((p) => p.position === 2);
+  const p3 = finalPrizes.find((p) => p.position === 3);
+  const restPrizes = finalPrizes.filter((p) => p.position > 3);
+
+  const HeaderStatusBadge = () => (
+    <div
+      className={
+        stage === "approved"
+          ? "inline-flex items-center rounded-xl border border-emerald-700/40 bg-emerald-950/30 px-3 py-2 text-xs text-emerald-200"
+          : stage === "rejected"
+          ? "inline-flex items-center rounded-xl border border-red-700/40 bg-red-950/30 px-3 py-2 text-xs text-red-200"
+          : "inline-flex items-center rounded-xl border border-yellow-700/40 bg-yellow-950/20 px-3 py-2 text-xs text-yellow-200"
+      }
+    >
+      Status:&nbsp;<span className="font-semibold">{registrationStatus || "not_joined"}</span>
+    </div>
+  );
+
   return (
     <main className="min-h-screen bg-black text-white">
-      <div className="max-w-6xl mx-auto px-6 py-12">
-        <div className="flex flex-col gap-6">
-          {/* Row 1 */}
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
-            <div className="min-w-0">
+      <div className="max-w-[1280px] mx-auto px-8 py-12">
+        {/* ✅ Pro layout (2 columns) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* LEFT */}
+          <div className="lg:col-span-8 flex flex-col gap-6">
+            {/* Header */}
+            <div className="flex flex-col gap-4">
               <Link href="/schedule" className="text-yellow-400 hover:underline">
                 ← Back to Schedule
               </Link>
 
-              <div className="flex items-center gap-4 mt-5">
-  {(t.sponsor_logo_url || sponsorKey) && (
-  <img
+              <div className="flex items-start gap-4">
+                {(t.sponsor_logo_url || sponsorKey) && (
+  <SponsorLogo
     src={
       t.sponsor_logo_url &&
-      (t.sponsor_logo_url.startsWith("http") ||
-        t.sponsor_logo_url.startsWith("/"))
+      (t.sponsor_logo_url.startsWith("http") || t.sponsor_logo_url.startsWith("/"))
         ? t.sponsor_logo_url
         : logoPathFromKey(sponsorKey)
     }
     alt={sponsorName || "Sponsor"}
-    className="h-12 w-auto object-contain rounded-lg bg-white p-1"
+    size="md"
   />
 )}
+                <div className="min-w-0">
+                  <h1 className="text-4xl font-extrabold truncate">
+                    {t.title} <span className="text-yellow-400">Details</span>
+                  </h1>
 
-  <div className="leading-tight min-w-0">
-    <h1 className="text-4xl font-extrabold truncate">
-      {t.title} <span className="text-yellow-400">Details</span>
-    </h1>
+                  {/* dates + chips */}
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+                    <div className="text-zinc-400">
+                      Starts: <span className="text-white font-semibold">{start.date}</span>{" "}
+                      <span className="text-zinc-500 text-xs">{start.time}</span>
+                    </div>
+                    <span className="text-zinc-600">→</span>
+                    <div className="text-zinc-400">
+                      Ends: <span className="text-white font-semibold">{end.date}</span>{" "}
+                      <span className="text-zinc-500 text-xs">{end.time}</span>
+                    </div>
 
-    {t.description ? (
-      <p className="text-zinc-400 mt-1 line-clamp-2">{t.description}</p>
-    ) : null}
-  </div>
-</div>
-            </div>
+                    <span className="ml-1 inline-flex items-center px-2 py-1 rounded-full border border-zinc-800 bg-black/30 text-xs">
+                      {type}
+                    </span>
 
-            {/* Right actions */}
-<div className="mt-2 grid grid-cols-2 gap-2 w-full md:w-auto md:min-w-[360px] md:justify-end">
-  <button
-    onClick={() => alert("Rules popup later")}
-    className="h-10 w-full rounded-xl border border-zinc-700 bg-black/20 px-4 text-sm font-semibold text-white hover:bg-zinc-900"
-  >
-    Rules
-  </button>
+                    <span
+                      className={
+                        "inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold border " +
+                        (status === "LIVE"
+                          ? "bg-green-600/15 text-green-300 border-green-600/25"
+                          : status === "UPCOMING"
+                          ? "bg-yellow-600/15 text-yellow-300 border-yellow-600/25"
+                          : "bg-red-600/15 text-red-300 border-red-600/25")
+                      }
+                    >
+                      {status}
+                    </span>
+                  </div>
 
-  {alreadyJoined ? (
-    <div
-      className={
-        "h-10 w-full inline-flex items-center justify-center rounded-xl px-4 text-sm font-semibold border " +
-        (registrationStatus === "approved"
-          ? "border-emerald-700/50 bg-emerald-950/30 text-emerald-200"
-          : registrationStatus === "rejected"
-          ? "border-red-700/50 bg-red-950/30 text-red-200"
-          : "border-yellow-700/50 bg-yellow-950/20 text-yellow-200")
-      }
-    >
-      Status:&nbsp;
-      <span className="font-bold">{registrationStatus || "joined_pending"}</span>
-    </div>
-  ) : (
-    <div className="h-10 w-full" />
-  )}
-
-  {alreadyJoined ? (
-    <div className="h-10 w-full inline-flex items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/40 px-4 text-sm font-semibold text-zinc-200">
-      Joined
-    </div>
-  ) : (
-    <button
-      disabled={status === "CLOSED"}
-      onClick={handleOpenJoin}
-      className={
-        "h-10 w-full rounded-xl px-5 text-sm font-semibold " +
-        (status === "CLOSED"
-          ? "cursor-not-allowed bg-zinc-700 text-zinc-300"
-          : "bg-yellow-500 text-black hover:brightness-95")
-      }
-    >
-      {status === "CLOSED" ? "Closed" : "Join Tournament"}
-    </button>
-  )}
-
-  {alreadyJoined && !credentialsSubmitted && status !== "CLOSED" ? (
-    <button
-      onClick={() => setOpenCreds(true)}
-      className="h-10 w-full rounded-xl border border-zinc-700 bg-black/20 px-4 text-sm font-semibold text-white hover:bg-zinc-900"
-    >
-      Submit Trading Details
-    </button>
-  ) : alreadyJoined && credentialsSubmitted ? (
-    <div className="h-10 w-full inline-flex items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/40 px-4 text-sm font-semibold text-zinc-300">
-      Submitted
-    </div>
-  ) : (
-    <div className="h-10 w-full" />
-  )}
-  </div>
-</div>
-
-          {/* Stats row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <div className="text-xs text-zinc-400">Entry</div>
-              <div className="text-3xl font-extrabold mt-2">{entry}</div>
-            </div>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <div className="text-xs text-zinc-400">Prize Pool</div>
-              <div className="text-3xl font-extrabold mt-2">${money(prizePool)}</div>
-            </div>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <div className="text-xs text-zinc-400">Sponsor</div>
-              <div className="text-3xl font-extrabold mt-2 truncate">{sponsorName}</div>
-            </div>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <div className="text-xs text-zinc-400">Participants</div>
-              <div className="text-3xl font-extrabold mt-2">{participantsCount}</div>
-            </div>
-          </div>
-
-          {/* Next Steps */}
-          <div className="mt-12 rounded-2xl border border-yellow-500/25 bg-gradient-to-b from-zinc-950/90 to-zinc-950/60 p-8 shadow-[0_0_0_1px_rgba(234,179,8,0.12),0_25px_70px_rgba(0,0,0,0.7)]">
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-              <div>
-                <div className="text-xl md:text-2xl font-extrabold tracking-tight">
-                  Next steps
-                  <span className="ml-2 text-xs font-semibold text-yellow-200/90 border border-yellow-500/20 bg-yellow-500/10 px-2 py-1 rounded-full">
-                    Required
-                  </span>
+                  {t.description ? <p className="text-zinc-400 mt-2">{t.description}</p> : null}
                 </div>
-                <div className="mt-1 text-sm text-zinc-300/90">{hint}</div>
-              </div>
-
-              <div
-                className={
-                  stage === "approved"
-                    ? "inline-flex items-center rounded-xl border border-emerald-700/40 bg-emerald-950/30 px-3 py-2 text-xs text-emerald-200"
-                    : stage === "rejected"
-                    ? "inline-flex items-center rounded-xl border border-red-700/40 bg-red-950/30 px-3 py-2 text-xs text-red-200"
-                    : "inline-flex items-center rounded-xl border border-yellow-700/40 bg-yellow-950/20 px-3 py-2 text-xs text-yellow-200"
-                }
-              >
-                Status:&nbsp;
-                <span className="font-semibold">{registrationStatus || "not_joined"}</span>
               </div>
             </div>
 
-            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-4">
-              {steps.map((s, idx) => {
-                const done = stepDone(s.key);
-                const current = stepCurrent(s.key);
+            {/* Next Steps */}
+            <div className="rounded-2xl border border-yellow-500/25 bg-gradient-to-b from-zinc-950/90 to-zinc-950/60 p-8 shadow-[0_0_0_1px_rgba(234,179,8,0.12),0_25px_70px_rgba(0,0,0,0.7)]">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                <div>
+                  <div className="text-xl md:text-2xl font-extrabold tracking-tight">
+                    Next steps
+                    <span className="ml-2 text-xs font-semibold text-yellow-200/90 border border-yellow-500/20 bg-yellow-500/10 px-2 py-1 rounded-full">
+                      Required
+                    </span>
+                  </div>
+                  <div className="mt-1 text-sm text-zinc-300/90">{hint}</div>
+                </div>
 
-                return (
-                  <div
-                    key={s.key}
-                    className={
-                      "group rounded-2xl p-5 transition-all duration-200 min-h-[110px] " +
-                      (done || (s.key === "review" && stage === "approved")
-  ? "border border-emerald-700/40 bg-emerald-950/25 hover:bg-emerald-950/35"
-                        : current
-                        ? "border border-yellow-700/50 bg-yellow-950/15 shadow-[0_0_0_1px_rgba(234,179,8,0.10),0_16px_40px_rgba(0,0,0,0.55)] hover:bg-yellow-950/25"
-                        : "border border-zinc-800 bg-black/20 hover:bg-zinc-950/40 hover:border-zinc-700")
-                    }
-                  >
-                    <div className="flex items-center justify-between">
-  <div className="text-xs text-zinc-400">Step {idx + 1}</div>
-  <div className="text-xs">{done ? "✅" : current ? "👉" : ""}</div>
-</div>
+                <HeaderStatusBadge />
+              </div>
 
-<div className="mt-2 text-base font-bold">{s.title}</div>
+              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-4">
+                {steps.map((s, idx) => {
+                  const done = stepDone(s.key);
+                  const current = stepCurrent(s.key);
 
-{/* 🔥 Badge خاص بـ Step 4 */}
-{s.key === "review" && (
-  <div
-    className={
-      "mt-3 inline-flex w-full items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold border " +
-      (stage === "approved"
-        ? "border-emerald-700/40 bg-emerald-950/30 text-emerald-200"
-        : stage === "rejected"
-        ? "border-red-700/40 bg-red-950/30 text-red-200"
-        : "border-yellow-700/40 bg-yellow-950/20 text-yellow-200")
-    }
-  >
-    {stage === "approved"
-      ? "Approved"
-      : stage === "rejected"
-      ? "Rejected"
-      : "Pending Approval"}
-  </div>
-)}
+                  return (
+                    <div
+  key={s.key}
+  className={
+    "group rounded-2xl p-5 transition-all duration-200 min-h-[170px] flex flex-col " +
+    (done || (s.key === "review" && stage === "approved")
+      ? "border border-emerald-700/40 bg-emerald-950/25 hover:bg-emerald-950/35"
+      : current
+      ? "border border-yellow-700/50 bg-yellow-950/15 shadow-[0_0_0_1px_rgba(234,179,8,0.10),0_16px_40px_rgba(0,0,0,0.55)] hover:bg-yellow-950/25"
+      : "border border-zinc-800 bg-black/20 hover:bg-zinc-950/40 hover:border-zinc-700")
+  }
+>
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs text-zinc-400">Step {idx + 1}</div>
+                        <div className="text-xs">{done ? "✅" : current ? "👉" : ""}</div>
+                      </div>
 
-{/* ⬇️ بعدها يجي زر download/demo */}
-{(s.action === "download" || s.action === "demo") && (
+                      <div className="mt-2 text-base font-extrabold leading-tight">{s.title}</div>
+
+
+<div className="mt-3 h-7" />
+
+{/* Primary action (always at bottom) */}
+{s.action === "download" && (
   <a
-    href={
-      s.action === "download"
-        ? platformInfo?.downloadUrl || "#"
-        : platformInfo?.demoSignupUrl || "#"
-    }
+    href={platformInfo?.downloadUrl || "#"}
     target="_blank"
     rel="noreferrer"
     className={
-      "mt-3 inline-flex w-full items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold " +
-      (stage === "not_joined"
-        ? "cursor-not-allowed pointer-events-none opacity-40 border border-zinc-800 bg-black/20 text-zinc-200"
-        : "bg-yellow-500 text-black hover:brightness-95")
-    }
+  "mt-auto inline-flex w-full items-center justify-center rounded-xl px-4 h-11 text-sm font-semibold whitespace-nowrap " +
+  (stage === "not_joined"
+    ? "cursor-not-allowed pointer-events-none opacity-40 border border-zinc-800 bg-black/20 text-zinc-200"
+    : "bg-yellow-500 text-black hover:brightness-95")
+}
   >
-    {s.action === "download" ? "Download" : "Open Demo Account"}
+    Download
+  </a>
+)}
+
+{s.action === "demo" && (
+  <a
+    href={platformInfo?.demoSignupUrl || "#"}
+    target="_blank"
+    rel="noreferrer"
+    className={
+  "mt-auto inline-flex w-full items-center justify-center rounded-xl px-4 h-11 text-sm font-semibold whitespace-nowrap " +
+  (stage === "not_joined"
+    ? "cursor-not-allowed pointer-events-none opacity-40 border border-zinc-800 bg-black/20 text-zinc-200"
+    : "bg-yellow-500 text-black hover:brightness-95")
+}
+  >
+    Open Demo
   </a>
 )}
 
@@ -754,12 +784,13 @@ export default function TournamentDetailsPage() {
   <button
     type="button"
     onClick={() => setOpenCreds(true)}
+    disabled={!alreadyJoined || status === "ENDED" || credentialsSubmitted}
     className={
-      "mt-3 inline-flex w-full items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold " +
-      (!alreadyJoined || status === "CLOSED"
-        ? "cursor-not-allowed pointer-events-none opacity-40 border border-zinc-800 bg-black/20 text-zinc-200"
+      "mt-auto inline-flex w-full items-center justify-center rounded-xl px-4 h-11 text-sm font-semibold whitespace-nowrap " +
+      (!alreadyJoined || status === "ENDED"
+        ? "cursor-not-allowed opacity-40 border border-zinc-800 bg-black/20 text-zinc-200"
         : credentialsSubmitted
-        ? "cursor-not-allowed pointer-events-none opacity-60 border border-zinc-700 bg-zinc-900/40 text-zinc-300"
+        ? "cursor-not-allowed opacity-60 border border-zinc-700 bg-zinc-900/40 text-zinc-300"
         : "bg-yellow-500 text-black hover:brightness-95")
     }
   >
@@ -767,8 +798,8 @@ export default function TournamentDetailsPage() {
   </button>
 )}
 
-                    {s.key === "review" && (
-  <div className="mt-2 text-xs text-zinc-400">
+{s.key === "review" && (
+  <div className="mt-auto text-xs text-zinc-400 leading-relaxed">
     {stage === "approved"
       ? "Approved ✅ You’re ready to trade."
       : stage === "rejected"
@@ -776,347 +807,495 @@ export default function TournamentDetailsPage() {
       : "We’ll approve you shortly."}
   </div>
 )}
-
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ✅ Prize Distribution (ALWAYS shows) */}
-          <div className="mt-6 w-full mx-auto rounded-2xl border border-zinc-800 bg-zinc-950/60 p-5">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-bold">🏆 Prize Distribution</h2>
-              <div className="text-xs text-zinc-400">Total Winners: {finalPrizes.length}</div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="mt-4 grid gap-3 justify-center [grid-template-columns:repeat(auto-fit,minmax(190px,220px))]">
-              {finalPrizes.map((p: any) => {
-                const pos = Number(p.position || 0);
-                const amt = Number(p.amount || 0);
-
-                const isFirst = pos === 1;
-                const isSecond = pos === 2;
-                const isThird = pos === 3;
-
-                const style = isFirst
-                  ? "bg-yellow-500 text-black shadow-lg"
-                  : isSecond
-                  ? "bg-zinc-800 border border-zinc-700 text-white"
-                  : isThird
-                  ? "bg-zinc-900 border border-zinc-800 text-white"
-                  : "bg-black/30 border border-zinc-800 text-white";
-
-                return (
-                  <div key={pos} className={`w-full max-w-[230px] rounded-2xl p-5 text-center ${style} transition-all`}>
-                    <div className="text-xs opacity-70">Position</div>
-                    <div className="mt-1 text-2xl font-extrabold">#{pos}</div>
-
-                    <div className="mt-1 text-2xl font-extrabold">${money(amt)}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ✅ Meta row (بدون •) */}
-          <div className="text-sm text-zinc-400">
-            <span className="text-zinc-200 font-semibold">{start.date}</span> — {start.time} → {end.time}
-            <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full border border-zinc-800 bg-black/30 text-xs">
-              {type}
-            </span>
-            <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full border border-zinc-800 bg-black/30 text-xs">
-              {status}
-            </span>
-          </div>
-
-          {/* Steps cards */}
-<div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-  <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-    <div className="text-xs text-zinc-400">Step 1</div>
-    <div className="mt-2 text-lg font-bold">Download Platform</div>
-    <div className="mt-1 text-sm text-zinc-400">{platformInfo.platformName}</div>
-
-    <a
-      href={platformInfo.downloadUrl}
-      target="_blank"
-      rel="noreferrer"
-      className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-yellow-500 px-4 py-3 text-sm font-semibold text-black hover:brightness-95"
-    >
-      Download
-    </a>
-  </div>
-
-  <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-    <div className="text-xs text-zinc-400">Step 2</div>
-    <div className="mt-2 text-lg font-bold">Create Demo Account</div>
-    <div className="mt-1 text-sm text-zinc-400">Open demo account with sponsor</div>
-
-    <a
-      href={platformInfo.demoSignupUrl}
-      target="_blank"
-      rel="noreferrer"
-      className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-zinc-700 bg-black/30 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-900"
-    >
-      Open Demo Signup
-    </a>
-  </div>
-
-  <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-    <div className="text-xs text-zinc-400">Contest Rules</div>
-
-    <div className="mt-3 text-sm text-zinc-300">
-      <div>
-        Leverage: <span className="text-white font-semibold">{LEVERAGE}</span>
-      </div>
-      <div className="mt-1">
-        Starting Balance: <span className="text-white font-semibold">{STARTING_BALANCE}</span>
-      </div>
+            {/* Prize Distribution — Clean Premium Cards */}
+<div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_22px_70px_rgba(0,0,0,0.6)]">
+  <div className="flex items-center justify-between gap-3">
+    <div className="flex items-center gap-2">
+      <div className="text-lg font-extrabold">🏆 Prize Distribution</div>
+      <span className="text-xs font-semibold text-zinc-200/90 border border-zinc-700 bg-black/30 px-2 py-1 rounded-full">
+        {finalPrizes.length} Winners
+      </span>
     </div>
-
-    <div className="mt-4 text-xs text-zinc-500">
-      Use investor password only. No real trading required.
+    <div className="text-xs text-zinc-400">
+      Prize Pool: <span className="text-zinc-100 font-semibold">${money(prizePool)}</span>
     </div>
   </div>
-</div>
-          {/* Tabs */}
-          <div className="mt-10 flex gap-2">
-            <TabButton value="overview" label="Overview" />
-            <TabButton value="leaderboard" label="Leaderboard" />
+
+  {/* Top 3 cards */}
+  <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+    {[p1, p2, p3].map((p, i) => {
+      const pos = i === 0 ? 1 : i === 1 ? 2 : 3;
+      const amount = Number((p as any)?.amount || 0);
+
+      const isFirst = pos === 1;
+
+      return (
+        <div
+          key={pos}
+          className={
+            "rounded-2xl border p-5 transition " +
+            (isFirst
+              ? "border-yellow-500/35 bg-gradient-to-b from-yellow-500/10 to-black/30 shadow-[0_0_0_1px_rgba(234,179,8,0.10),0_18px_55px_rgba(0,0,0,0.65)]"
+              : "border-zinc-800 bg-black/25 hover:bg-zinc-950/40")
+          }
+        >
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-xs text-zinc-400">Position</div>
+              <div className={"mt-1 text-2xl font-extrabold " + (isFirst ? "text-yellow-200" : "text-zinc-100")}>
+                #{pos}
+              </div>
+            </div>
+
+            {/* Medal */}
+            <div
+              className={
+                "h-10 w-10 rounded-2xl flex items-center justify-center border text-sm font-extrabold " +
+                (isFirst
+                  ? "border-yellow-500/30 bg-yellow-500/15 text-yellow-200"
+                  : "border-zinc-700 bg-black/30 text-zinc-200")
+              }
+            >
+              {isFirst ? "👑" : pos === 2 ? "🥈" : "🥉"}
+            </div>
           </div>
 
-          {/* Overview */}
-          {tab === "overview" && (
-            <>
-              <div className="mt-6 bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-                <div className="text-xs text-zinc-400">Schedule</div>
-                <div className="mt-2 text-sm text-zinc-300">
-                  Starts: <span className="text-white font-semibold">{start.date} {start.time}</span>
-                  <br />
-                  Ends: <span className="text-white font-semibold">{end.date} {end.time}</span>
-                </div>
+          <div className="mt-4">
+            <div className="text-xs text-zinc-400">Prize</div>
+            <div className={"mt-1 text-3xl font-extrabold " + (isFirst ? "text-yellow-200" : "text-white")}>
+              ${money(amount)}
+            </div>
 
-                <div className="mt-4 text-xs text-zinc-500">
-                  Note: Advanced fields (Platform / Leverage / Starting balance…) can be added later in DB if needed.
-                </div>
-              </div>
-
-              <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-                {top3.map((p) => (
-                  <div key={p.rank} className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="text-xs text-zinc-400">Rank</div>
-                        <div className="text-3xl font-extrabold mt-1">#{p.rank}</div>
-                      </div>
-
-                      <div className="text-xs font-bold px-3 py-1 rounded-full border border-zinc-700 bg-black/40">
-                        TOP 3
-                      </div>
-                    </div>
-
-                    <div className="mt-5">
-                      <div className="text-xl font-semibold">{p.user}</div>
-                      <div className="text-sm text-zinc-400 mt-1">
-                        Win Rate: {p.winRate}% • Max DD: {p.maxDD}% • Trades: {p.trades}
-                      </div>
-
-                      <div className="mt-4 flex items-baseline justify-between">
-                        <div className="text-zinc-400 text-sm">PnL</div>
-                        <div className="text-2xl font-bold text-green-400">+${money(p.pnl)}</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-8 text-sm text-zinc-400">
-                Tip: Use the <span className="text-white font-semibold">Leaderboard</span> tab to view full standings.
-              </div>
-            </>
-          )}
-
-          {/* Leaderboard */}
-          {tab === "leaderboard" && (
-            <div className="mt-6 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-              <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
-                <h2 className="text-xl font-semibold">Leaderboard</h2>
-                <div className="text-sm text-zinc-400">Demo data</div>
-              </div>
-
-              <div className="px-6 py-3 text-xs text-zinc-400 grid grid-cols-6">
-                <div>Rank</div>
-                <div className="col-span-2">User</div>
-                <div className="text-right">PnL</div>
-                <div className="text-right">Win%</div>
-                <div className="text-right">Max DD</div>
-              </div>
-
-              {rows.map((r) => (
+            <div className="mt-3">
+              <div className="h-2 rounded-full bg-zinc-900/60 border border-zinc-800 overflow-hidden">
                 <div
-                  key={r.rank}
-                  className="px-6 py-4 border-t border-zinc-800 grid grid-cols-6 items-center hover:bg-black/30"
-                >
-                  <div className="font-semibold">#{r.rank}</div>
-                  <div className="col-span-2">{r.user}</div>
-                  <div className="text-right font-semibold text-green-400">+${money(r.pnl)}</div>
-                  <div className="text-right">{r.winRate}%</div>
-                  <div className="text-right">{r.maxDD}%</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Join Modal */}
-          {openJoin && (
-            <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4">
-              <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6 relative">
-                <button
-                  onClick={() => setOpenJoin(false)}
-                  className="absolute right-4 top-4 text-zinc-400 hover:text-white"
-                  aria-label="Close"
-                >
-                  ✕
-                </button>
-
-                <h3 className="text-xl font-bold">
-                  Join: <span className="text-yellow-400">{t.title}</span>
-                </h3>
-
-                <div className="mt-4 text-sm text-zinc-300">
-                  Required info (later): <span className="text-white font-semibold">email, phone, name</span> + trading
-                  login details.
-                </div>
-
-                <div className="mt-4 flex items-start gap-2 text-sm text-zinc-300">
-                  <input
-                    id="agree"
-                    type="checkbox"
-                    checked={agree}
-                    onChange={(e) => setAgree(e.target.checked)}
-                    className="mt-1"
-                  />
-                  <label htmlFor="agree">
-                    I agree to the <span className="text-yellow-400">tournament rules</span> and{" "}
-                    <span className="text-yellow-400">privacy policy</span>.
-                  </label>
-                </div>
-
-                <div className="mt-6 flex gap-3">
-                  <button
-                    onClick={() => setOpenJoin(false)}
-                    className="flex-1 border border-zinc-700 px-4 py-2 rounded-lg hover:bg-zinc-800"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    disabled={!agree}
-                    onClick={handleJoinNow}
-                    className={
-                      agree
-                        ? "flex-1 bg-yellow-500 text-black px-4 py-2 rounded-lg font-semibold"
-                        : "flex-1 bg-yellow-500/40 text-black/60 px-4 py-2 rounded-lg font-semibold cursor-not-allowed"
-                    }
-                  >
-                    Join Now
-                  </button>
-                </div>
-
-                <div className="mt-3 text-xs text-zinc-500">(Demo UI only — later we store data in DB.)</div>
+                  className={
+                    "h-full rounded-full " +
+                    (isFirst ? "bg-yellow-500/80" : "bg-zinc-700/70")
+                  }
+                  style={{
+                    width:
+                      prizePool > 0
+                        ? `${Math.min(100, Math.round((amount / prizePool) * 100))}%`
+                        : "0%",
+                  }}
+                />
+              </div>
+              <div className="mt-2 text-xs text-zinc-500">
+                {prizePool > 0 ? Math.round((amount / prizePool) * 100) : 0}% of prize pool
               </div>
             </div>
-          )}
+          </div>
+        </div>
+      );
+    })}
+  </div>
 
-          {/* Credentials Modal */}
-          {openCreds && (
-            <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4">
-              <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6 relative">
-                <button
-                  onClick={() => setOpenCreds(false)}
-                  className="absolute right-4 top-4 text-zinc-400 hover:text-white"
-                  aria-label="Close"
-                >
-                  ✕
-                </button>
+  {/* Other winners */}
+  {restPrizes.length > 0 && (
+    <div className="mt-6 border-t border-zinc-800/70 pt-5">
+      <div className="text-sm font-semibold text-zinc-200">Other winning positions</div>
 
-                <h3 className="text-xl font-bold">Submit Trading Details</h3>
-                <p className="mt-2 text-sm text-zinc-400">
-                  Open your demo account first, then submit your <span className="text-white">view-only</span>{" "}
-                  credentials.
-                </p>
+      <div className="mt-3 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(180px,220px))]">
+        {restPrizes.map((p) => (
+          <div
+            key={p.position}
+            className="rounded-2xl border border-zinc-800 bg-black/20 p-4 text-center hover:bg-zinc-950/40 transition"
+          >
+            <div className="text-xs text-zinc-400">Position</div>
+            <div className="mt-1 text-xl font-extrabold">#{p.position}</div>
+            <div className="mt-1 text-xl font-extrabold text-zinc-100">${money(Number(p.amount || 0))}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
+</div>
 
-                <div className="mt-5 space-y-3">
-                  <div>
-                    <label className="text-xs text-zinc-400">Platform (MT4/MT5)</label>
-                    <input
-                      value={platform}
-                      onChange={(e) => setPlatform(e.target.value)}
-                      className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
-                      placeholder="MT5"
-                    />
-                  </div>
+            {/* Tournament Specs (يطوّل الصفحة ويعطي احتراف) */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-6">
+              <h2 className="text-lg font-bold">Tournament Specs</h2>
+              <p className="mt-1 text-sm text-zinc-400">
+                These specs help participants configure their demo accounts correctly.
+              </p>
 
-                  <div>
-                    <label className="text-xs text-zinc-400">Login</label>
-                    <input
-                      value={login}
-                      onChange={(e) => setLogin(e.target.value)}
-                      className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
-                      placeholder="e.g. 12345678"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-zinc-400">Investor Password (view-only)</label>
-                    <input
-                      value={investorPassword}
-                      onChange={(e) => setInvestorPassword(e.target.value)}
-                      className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
-                      placeholder="View-only password"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-zinc-400">Server</label>
-                    <input
-                      value={server}
-                      onChange={(e) => setServer(e.target.value)}
-                      className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
-                      placeholder="e.g. Exness-MT5Real"
-                    />
+              <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-zinc-800 bg-black/20 p-5">
+                  <div className="text-xs text-zinc-400">Platform</div>
+                  <div className="mt-2 text-xl font-extrabold">{platformInfo.platformName}</div>
+                  <div className="mt-3 flex gap-2">
+                    <a
+                      href={platformInfo.downloadUrl || "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold border border-zinc-700 bg-black/20 hover:bg-zinc-900"
+                    >
+                      Download
+                    </a>
+                    <a
+                      href={platformInfo.demoSignupUrl || "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold bg-yellow-500 text-black hover:brightness-95"
+                    >
+                      Open Demo Account
+                    </a>
                   </div>
                 </div>
 
-                <div className="mt-6 flex gap-3">
-                  <button
-                    onClick={() => setOpenCreds(false)}
-                    className="flex-1 border border-zinc-700 px-4 py-2 rounded-lg hover:bg-zinc-800"
-                  >
-                    Cancel
-                  </button>
+                <div className="rounded-2xl border border-zinc-800 bg-black/20 p-5">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-xs text-zinc-400">Leverage</div>
+                      <div className="mt-2 text-xl font-extrabold">{LEVERAGE}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-zinc-400">Starting Balance</div>
+                      <div className="mt-2 text-xl font-extrabold">{STARTING_BALANCE}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-zinc-400">Entry</div>
+                      <div className="mt-2 text-xl font-extrabold">{entry}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-zinc-400">Sponsor</div>
+                      <div className="mt-2 text-xl font-extrabold truncate">{sponsorName}</div>
+                    </div>
+                  </div>
 
-                  <button
-                    disabled={!platform || !login || !investorPassword || !server}
-                    onClick={handleSubmitCredentials}
+                  <div className="mt-4 text-xs text-zinc-500">
+                    Note: You submit <span className="text-zinc-200 font-semibold">view-only</span> credentials only
+                    (Investor password).
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT (Sticky panel) */}
+          <aside className="lg:col-span-4 mt-6 lg:mt-[140px]">
+            <div className="lg:sticky lg:top-24 flex flex-col gap-4 rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
+              {/* Actions */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => alert("Rules popup later")}
+                  className="h-10 w-full rounded-xl border border-zinc-700 bg-black/20 px-4 text-sm font-semibold text-white hover:bg-zinc-900"
+                >
+                  Rules
+                </button>
+
+                {alreadyJoined ? (
+                  <div
                     className={
-                      !platform || !login || !investorPassword || !server
-                        ? "flex-1 bg-yellow-500/40 text-black/60 px-4 py-2 rounded-lg font-semibold cursor-not-allowed"
-                        : "flex-1 bg-yellow-500 text-black px-4 py-2 rounded-lg font-semibold"
+                      "h-10 w-full inline-flex items-center justify-center rounded-xl px-4 text-sm font-semibold border " +
+                      (registrationStatus === "approved"
+                        ? "border-emerald-700/50 bg-emerald-950/30 text-emerald-200"
+                        : registrationStatus === "rejected"
+                        ? "border-red-700/50 bg-red-950/30 text-red-200"
+                        : "border-yellow-700/50 bg-yellow-950/20 text-yellow-200")
                     }
                   >
-                    Submit
+                    Status:&nbsp;<span className="font-bold">{registrationStatus || "joined_pending"}</span>
+                  </div>
+                ) : (
+                  <div className="h-10 w-full" />
+                )}
+
+                {alreadyJoined ? (
+                  <div className="h-10 w-full inline-flex items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/40 px-4 text-sm font-semibold text-zinc-200">
+                    Joined
+                  </div>
+                ) : (
+                  <button
+                    disabled={status === "ENDED"}
+                    onClick={handleOpenJoin}
+                    className={
+                      "h-10 w-full rounded-xl px-5 text-sm font-semibold " +
+                      (status === "ENDED"
+                        ? "cursor-not-allowed bg-zinc-700 text-zinc-300"
+                        : "bg-yellow-500 text-black hover:brightness-95")
+                    }
+                  >
+                    {status === "ENDED" ? "Ended" : "Join Tournament"}
                   </button>
+                )}
+
+                {alreadyJoined && !credentialsSubmitted && status !== "ENDED" ? (
+                  <button
+                    onClick={() => setOpenCreds(true)}
+                    className="h-10 w-full rounded-xl border border-zinc-700 bg-black/20 px-4 text-sm font-semibold text-white hover:bg-zinc-900"
+                  >
+                    Submit Trading Details
+                  </button>
+                ) : alreadyJoined && credentialsSubmitted ? (
+                  <div className="h-10 w-full inline-flex items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/40 px-4 text-sm font-semibold text-zinc-300">
+                    Submitted
+                  </div>
+                ) : (
+                  <div className="h-10 w-full" />
+                )}
+              </div>
+
+              {/* Stats */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-zinc-800 bg-black/20 p-4">
+                  <div className="text-xs text-zinc-400">Entry</div>
+                  <div className="mt-2 text-2xl font-extrabold">{entry}</div>
+                </div>
+                <div className="rounded-2xl border border-zinc-800 bg-black/20 p-4">
+                  <div className="text-xs text-zinc-400">Prize Pool</div>
+                  <div className="mt-2 text-2xl font-extrabold">${money(prizePool)}</div>
+                </div>
+                <div className="rounded-2xl border border-zinc-800 bg-black/20 p-4">
+                  <div className="text-xs text-zinc-400">Sponsor</div>
+                  <div className="mt-2 text-2xl font-extrabold truncate">{sponsorName}</div>
+                </div>
+                <div className="rounded-2xl border border-zinc-800 bg-black/20 p-4">
+                  <div className="text-xs text-zinc-400">Participants</div>
+                  <div className="mt-2 text-2xl font-extrabold">{participantsCount}</div>
+                </div>
+              </div>
+
+              {/* Quick links */}
+              <div className="rounded-2xl border border-zinc-800 bg-black/20 p-4">
+                <div className="text-xs text-zinc-400">Quick setup</div>
+                <div className="mt-2 text-sm text-zinc-300">
+                  Platform: <span className="text-white font-semibold">{platformInfo.platformName}</span>
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <a
+                    href={platformInfo.downloadUrl || "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold border border-zinc-700 bg-black/20 hover:bg-zinc-900"
+                  >
+                    Download
+                  </a>
+                  <a
+                    href={platformInfo.demoSignupUrl || "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold bg-yellow-500 text-black hover:brightness-95"
+                  >
+                    Open Demo
+                  </a>
                 </div>
 
                 <div className="mt-3 text-xs text-zinc-500">
-                  Note: We only accept <span className="text-white">view-only</span> credentials (Investor password).
+                  Leverage: <span className="text-zinc-200 font-semibold">{LEVERAGE}</span> • Starting balance:{" "}
+                  <span className="text-zinc-200 font-semibold">{STARTING_BALANCE}</span>
                 </div>
               </div>
+
+              <div className="text-xs text-zinc-500">
+                {/* Sponsor CTA Box */}
+<div className="rounded-2xl border border-zinc-800 bg-black/20 p-4">
+  <div className="flex items-center justify-between gap-3">
+    <div className="text-sm font-bold text-yellow-300">
+  Ready to trade live?
+</div>
+
+    <span className="inline-flex items-center rounded-full border border-zinc-700 bg-black/30 px-3 py-1 text-xs font-semibold text-zinc-200">
+      Official
+    </span>
+  </div>
+
+  <div className="mt-3 flex items-center gap-3">
+    <SponsorLogo src={sponsorLogoSrc} alt={sponsorName} size="md" />
+
+    <div className="min-w-0">
+      <div className="text-base font-extrabold truncate">
+        {sponsorCta?.name || sponsorName}
+      </div>
+      <div className="text-xs text-zinc-500">
+        Create an account with our official partner.
+      </div>
+    </div>
+  </div>
+
+  <div className="mt-4 flex gap-2">
+    <a
+      href={sponsorCta.websiteUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="flex-1 inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold border border-zinc-700 bg-black/20 hover:bg-zinc-900"
+    >
+      Visit Broker
+    </a>
+
+    <a
+      href={sponsorCta.openAccountUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="flex-1 inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold bg-yellow-500 text-black hover:brightness-95"
+    >
+      Open Live
+    </a>
+  </div>
+
+  <div className="mt-3 text-xs text-zinc-500">
+    Tip: Keep this panel visible while you complete the required steps.
+  </div>
+</div>
+</div>
             </div>
-          )}
+          </aside>
         </div>
       </div>
+
+      {/* Join Modal */}
+      {openJoin && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6 relative">
+            <button
+              onClick={() => setOpenJoin(false)}
+              className="absolute right-4 top-4 text-zinc-400 hover:text-white"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+
+            <h3 className="text-xl font-bold">
+              Join: <span className="text-yellow-400">{t.title}</span>
+            </h3>
+
+            <div className="mt-4 text-sm text-zinc-300">
+              Required info (later): <span className="text-white font-semibold">email, phone, name</span> + trading login
+              details.
+            </div>
+
+            <div className="mt-4 flex items-start gap-2 text-sm text-zinc-300">
+              <input
+                id="agree"
+                type="checkbox"
+                checked={agree}
+                onChange={(e) => setAgree(e.target.checked)}
+                className="mt-1"
+              />
+              <label htmlFor="agree">
+                I agree to the <span className="text-yellow-400">tournament rules</span> and{" "}
+                <span className="text-yellow-400">privacy policy</span>.
+              </label>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => setOpenJoin(false)}
+                className="flex-1 border border-zinc-700 px-4 py-2 rounded-lg hover:bg-zinc-800"
+              >
+                Cancel
+              </button>
+
+              <button
+                disabled={!agree}
+                onClick={handleJoinNow}
+                className={
+                  agree
+                    ? "flex-1 bg-yellow-500 text-black px-4 py-2 rounded-lg font-semibold"
+                    : "flex-1 bg-yellow-500/40 text-black/60 px-4 py-2 rounded-lg font-semibold cursor-not-allowed"
+                }
+              >
+                Join Now
+              </button>
+            </div>
+
+            <div className="mt-3 text-xs text-zinc-500">(Demo UI only — later we store data in DB.)</div>
+          </div>
+        </div>
+      )}
+
+      {/* Credentials Modal */}
+      {openCreds && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6 relative">
+            <button
+              onClick={() => setOpenCreds(false)}
+              className="absolute right-4 top-4 text-zinc-400 hover:text-white"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+
+            <h3 className="text-xl font-bold">Submit Trading Details</h3>
+            <p className="mt-2 text-sm text-zinc-400">
+              Open your demo account first, then submit your <span className="text-white">view-only</span> credentials.
+            </p>
+
+            <div className="mt-5 space-y-3">
+              <div>
+                <label className="text-xs text-zinc-400">Platform (MT4/MT5)</label>
+                <input
+                  value={platform}
+                  onChange={(e) => setPlatform(e.target.value)}
+                  className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
+                  placeholder="MT5"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-zinc-400">Login</label>
+                <input
+                  value={login}
+                  onChange={(e) => setLogin(e.target.value)}
+                  className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
+                  placeholder="e.g. 12345678"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-zinc-400">Investor Password (view-only)</label>
+                <input
+                  value={investorPassword}
+                  onChange={(e) => setInvestorPassword(e.target.value)}
+                  className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
+                  placeholder="View-only password"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-zinc-400">Server</label>
+                <input
+                  value={server}
+                  onChange={(e) => setServer(e.target.value)}
+                  className="mt-1 w-full bg-black/30 border border-zinc-700 rounded-lg px-3 py-2 outline-none"
+                  placeholder="e.g. Exness-MT5Real"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => setOpenCreds(false)}
+                className="flex-1 border border-zinc-700 px-4 py-2 rounded-lg hover:bg-zinc-800"
+              >
+                Cancel
+              </button>
+
+              <button
+                disabled={!platform || !login || !investorPassword || !server}
+                onClick={handleSubmitCredentials}
+                className={
+                  !platform || !login || !investorPassword || !server
+                    ? "flex-1 bg-yellow-500/40 text-black/60 px-4 py-2 rounded-lg font-semibold cursor-not-allowed"
+                    : "flex-1 bg-yellow-500 text-black px-4 py-2 rounded-lg font-semibold"
+                }
+              >
+                Submit
+              </button>
+            </div>
+
+            <div className="mt-3 text-xs text-zinc-500">
+              Note: We only accept <span className="text-white">view-only</span> credentials (Investor password).
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
