@@ -2,6 +2,19 @@
 
 import { useState } from "react";
 
+function cleanEmail(input: string) {
+  // iOS/Safari autofill sometimes adds invisible spaces / zero-width chars.
+  return input
+    .replace(/[\s\u00A0\u200B\u200C\u200D]/g, "") // spaces + NBSP + zero-width
+    .trim()
+    .toLowerCase();
+}
+
+function isValidEmail(v: string) {
+  // simple, safe validation
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+
 export default function NewsletterForm() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -11,9 +24,15 @@ export default function NewsletterForm() {
     e.preventDefault();
     setMsg(null);
 
-    const v = email.trim().toLowerCase();
+    const v = cleanEmail(email);
+
     if (!v) {
       setMsg("⚠️ Please enter your email.");
+      return;
+    }
+
+    if (!isValidEmail(v)) {
+      setMsg("⚠️ Please enter a valid email.");
       return;
     }
 
@@ -48,6 +67,10 @@ export default function NewsletterForm() {
         <input
           type="email"
           name="email"
+          inputMode="email"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Enter your email"
