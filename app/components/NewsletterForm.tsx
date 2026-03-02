@@ -14,7 +14,6 @@ function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
-// Extract first valid email even if string contains weird characters
 function extractEmail(raw: string) {
   const match = String(raw || "").match(
     /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
@@ -31,10 +30,8 @@ export default function NewsletterForm() {
     e.preventDefault();
     setMsg(null);
 
-    // Step 1: Clean
     let v = cleanEmail(email);
 
-    // Step 2: If still invalid, try extracting
     if (!isValidEmail(v)) {
       const extracted = extractEmail(email);
       v = cleanEmail(extracted);
@@ -68,18 +65,16 @@ export default function NewsletterForm() {
           setMsg("✅ Thanks for subscribing! You'll hear from us soon.");
           setEmail("");
         }
-      } else if (res.status === 400) {
-        // Show server message if exists instead of always assuming invalid email
-        if (data?.message === "Invalid email") {
-          setMsg("⚠️ Please enter a valid email.");
-        } else {
-          setMsg("⚠️ Something went wrong. Please try again.");
-        }
       } else {
-        setMsg("⚠️ Something went wrong. Please try again.");
+        // 🔎 IMPORTANT: show exact error for debugging
+        setMsg(
+          `⚠️ Error ${res.status}: ${
+            data?.message || "Unknown server error"
+          }`
+        );
       }
-    } catch {
-      setMsg("⚠️ Something went wrong. Please try again.");
+    } catch (err: any) {
+      setMsg("⚠️ Network error. Please try again.");
     } finally {
       setLoading(false);
     }
