@@ -3,16 +3,23 @@
 import { useState } from "react";
 
 function cleanEmail(input: string) {
-  // iOS/Safari autofill can inject invisible chars (direction marks, zero-width, NBSP, BOM...)
   return String(input || "")
-    .replace(/[\s\u00A0\u200B-\u200F\u202A-\u202E\u2060\uFEFF]/g, "") // spaces + invisibles
+    .replace(/[\s\u00A0\u200B-\u200F\u202A-\u202E\u2060\uFEFF]/g, "")
     .trim()
     .toLowerCase()
-    .replace(/[.,;:]+$/g, ""); // just in case a trailing punctuation sneaks in
+    .replace(/[.,;:]+$/g, "");
 }
 
 function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+
+// Extract first valid email even if string contains weird characters
+function extractEmail(raw: string) {
+  const match = String(raw || "").match(
+    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
+  );
+  return match ? match[0] : "";
 }
 
 export default function NewsletterForm() {
@@ -24,7 +31,14 @@ export default function NewsletterForm() {
     e.preventDefault();
     setMsg(null);
 
-    const v = cleanEmail(email);
+    // Step 1: Clean
+    let v = cleanEmail(email);
+
+    // Step 2: If still invalid, try extracting
+    if (!isValidEmail(v)) {
+      const extracted = extractEmail(email);
+      v = cleanEmail(extracted);
+    }
 
     if (!v) {
       setMsg("⚠️ Please enter your email.");
@@ -37,6 +51,7 @@ export default function NewsletterForm() {
     }
 
     setLoading(true);
+
     try {
       const res = await fetch("/api/newsletter/subscribe", {
         method: "POST",
@@ -54,7 +69,12 @@ export default function NewsletterForm() {
           setEmail("");
         }
       } else if (res.status === 400) {
-        setMsg("⚠️ Please enter a valid email.");
+        // Show server message if exists instead of always assuming invalid email
+        if (data?.message === "Invalid email") {
+          setMsg("⚠️ Please enter a valid email.");
+        } else {
+          setMsg("⚠️ Something went wrong. Please try again.");
+        }
       } else {
         setMsg("⚠️ Something went wrong. Please try again.");
       }
