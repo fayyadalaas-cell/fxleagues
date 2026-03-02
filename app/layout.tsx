@@ -24,9 +24,9 @@ function Footer() {
         {/* TOP GRID */}
         <div
           className="
-            grid grid-cols-1 items-start gap-y-10
+            grid grid-cols-1 items-start gap-y-8
             md:grid-cols-[1.1fr_0.8fr_0.8fr_1.1fr]
-            md:gap-x-6
+            md:gap-x-6 md:gap-y-10
           "
         >
           {/* Brand */}
@@ -38,52 +38,57 @@ function Footer() {
               <div className="text-lg font-extrabold text-white">Forex Leagues</div>
             </div>
 
-            <p className="text-sm text-zinc-400 mt-4 leading-relaxed max-w-[260px]">
+            <p className="text-sm text-zinc-400 mt-4 leading-relaxed max-w-[340px] md:max-w-[260px]">
               Competitive trading tournaments built for performance, transparency, and growth.
             </p>
           </div>
 
-          {/* Platform */}
-          <div className="md:justify-self-start">
-            <div className="text-sm font-semibold mb-3 text-white">Platform</div>
-            <div className="flex flex-col gap-2 text-sm text-zinc-300">
-              <a href="/schedule" className="hover:text-white transition">
-                Schedule
-              </a>
-              <a href="/winners" className="hover:text-white transition">
-                Winners
-              </a>
-              <a href="/how-it-works" className="hover:text-white transition">
-                How it works
-              </a>
-              <a href="/brokers" className="hover:text-white transition">
-                Brokers
-              </a>
+          {/* ✅ MOBILE: Platform + Company side-by-side (2 cols)
+              ✅ DESKTOP: keep as-is (each one is its own column)
+          */}
+          <div className="grid grid-cols-2 gap-8 md:contents">
+            {/* Platform */}
+            <div className="md:justify-self-start">
+              <div className="text-sm font-semibold mb-3 text-white">Platform</div>
+              <div className="flex flex-col gap-2 text-sm text-zinc-300">
+                <a href="/schedule" className="hover:text-white transition">
+                  Schedule
+                </a>
+                <a href="/winners" className="hover:text-white transition">
+                  Winners
+                </a>
+                <a href="/how-it-works" className="hover:text-white transition">
+                  How it works
+                </a>
+                <a href="/brokers" className="hover:text-white transition">
+                  Brokers
+                </a>
+              </div>
+            </div>
+
+            {/* Company */}
+            <div className="md:justify-self-start">
+              <div className="text-sm font-semibold mb-3 text-white">Company</div>
+              <div className="flex flex-col gap-2 text-sm text-zinc-300">
+                <a href="/about" className="hover:text-white transition">
+                  About
+                </a>
+                <a href="/contact" className="hover:text-white transition">
+                  Contact
+                </a>
+                <a href="/terms" className="hover:text-white transition">
+                  Terms &amp; Conditions
+                </a>
+                <a href="/privacy" className="hover:text-white transition">
+                  Privacy Policy
+                </a>
+              </div>
             </div>
           </div>
 
-          {/* Company */}
-          <div className="md:justify-self-start">
-            <div className="text-sm font-semibold mb-3 text-white">Company</div>
-            <div className="flex flex-col gap-2 text-sm text-zinc-300">
-              <a href="/about" className="hover:text-white transition">
-                About
-              </a>
-              <a href="/contact" className="hover:text-white transition">
-                Contact
-              </a>
-              <a href="/terms" className="hover:text-white transition">
-                Terms &amp; Conditions
-              </a>
-              <a href="/privacy" className="hover:text-white transition">
-                Privacy Policy
-              </a>
-            </div>
-          </div>
-
-          {/* Newsletter — wider */}
+          {/* Newsletter — wider on desktop, compact on mobile */}
           <div className="w-full md:justify-self-end md:w-[460px]">
-            <div className="rounded-2xl border border-yellow-500/20 bg-zinc-900/25 px-6 py-5 shadow-[0_0_0_1px_rgba(250,204,21,0.06)]">
+            <div className="rounded-2xl border border-yellow-500/20 bg-zinc-900/25 px-4 py-4 md:px-6 md:py-5 shadow-[0_0_0_1px_rgba(250,204,21,0.06)]">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold text-white">Newsletter</div>
                 <div className="hidden md:block text-[11px] text-zinc-500">Updates</div>
