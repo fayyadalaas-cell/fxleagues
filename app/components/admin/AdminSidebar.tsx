@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 type NavItem = { href: string; label: string; desc?: string };
+type NavSection = { title: string; items: NavItem[] };
 
 export default function AdminSidebar() {
   const pathname = usePathname();
@@ -14,7 +15,7 @@ export default function AdminSidebar() {
     return pathname === href || pathname.startsWith(href + "/");
   };
 
-  const sections: { title: string; items: NavItem[] }[] = [
+  const sections: NavSection[] = [
     {
       title: "Overview",
       items: [{ href: "/admin", label: "Dashboard", desc: "Quick stats & links" }],
@@ -47,8 +48,21 @@ export default function AdminSidebar() {
     {
       title: "Content",
       items: [
-        { href: "/admin/brokers", label: "Manage Brokers", desc: "Homepage broker logos" },
-        { href: "/brokers", label: "Brokers Page", desc: "View public page" },
+        {
+          href: "/admin/brokers",
+          label: "Manage Brokers",
+          desc: "Homepage broker logos",
+        },
+        {
+          href: "/admin/newsletter",
+          label: "Newsletter",
+          desc: "Subscribers list & exports",
+        },
+        {
+          href: "/brokers",
+          label: "Brokers Page",
+          desc: "View public page",
+        },
       ],
     },
   ];

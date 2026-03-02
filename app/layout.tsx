@@ -4,6 +4,7 @@ import { AuthProvider } from "./providers";
 import { Suspense } from "react";
 import VerifyEmailBanner from "./components/VerifyEmailBanner";
 import Navbar from "./components/Navbar";
+import NewsletterForm from "./components/NewsletterForm";
 
 export const metadata: Metadata = {
   title: "Forex Leagues",
@@ -19,9 +20,15 @@ function Footer() {
       <div className="pointer-events-none absolute -top-px left-0 right-0 h-px bg-gradient-to-r from-transparent via-yellow-500/25 to-transparent" />
 
       {/* Same width as site */}
-      <div className="max-w-7xl mx-auto px-6 py-10">
+      <div className="max-w-7xl mx-auto px-6 py-2">
         {/* TOP GRID */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-10 items-start">
+        <div
+          className="
+            grid grid-cols-1 items-start gap-y-10
+            md:grid-cols-[1.1fr_0.8fr_0.8fr_1.1fr]
+            md:gap-x-6
+          "
+        >
           {/* Brand */}
           <div>
             <div className="flex items-center gap-3">
@@ -31,13 +38,13 @@ function Footer() {
               <div className="text-lg font-extrabold text-white">Forex Leagues</div>
             </div>
 
-            <p className="text-sm text-zinc-400 mt-4 leading-relaxed max-w-xs">
+            <p className="text-sm text-zinc-400 mt-4 leading-relaxed max-w-[260px]">
               Competitive trading tournaments built for performance, transparency, and growth.
             </p>
           </div>
 
           {/* Platform */}
-          <div>
+          <div className="md:justify-self-start">
             <div className="text-sm font-semibold mb-3 text-white">Platform</div>
             <div className="flex flex-col gap-2 text-sm text-zinc-300">
               <a href="/schedule" className="hover:text-white transition">
@@ -56,7 +63,7 @@ function Footer() {
           </div>
 
           {/* Company */}
-          <div>
+          <div className="md:justify-self-start">
             <div className="text-sm font-semibold mb-3 text-white">Company</div>
             <div className="flex flex-col gap-2 text-sm text-zinc-300">
               <a href="/about" className="hover:text-white transition">
@@ -74,37 +81,20 @@ function Footer() {
             </div>
           </div>
 
-          {/* Newsletter — compact + aligned + more visible (NO handlers) */}
-          <div className="w-full md:justify-self-end">
-            <div className="rounded-2xl border border-yellow-500/20 bg-zinc-900/25 px-5 py-4 shadow-[0_0_0_1px_rgba(250,204,21,0.06)]">
+          {/* Newsletter — wider */}
+          <div className="w-full md:justify-self-end md:w-[460px]">
+            <div className="rounded-2xl border border-yellow-500/20 bg-zinc-900/25 px-6 py-5 shadow-[0_0_0_1px_rgba(250,204,21,0.06)]">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold text-white">Newsletter</div>
-                <div className="hidden md:block text-[11px] text-zinc-500">
-                  Updates
-                </div>
+                <div className="hidden md:block text-[11px] text-zinc-500">Updates</div>
               </div>
 
               <p className="mt-2 text-sm text-zinc-300 leading-relaxed">
                 Tournament updates and announcements.
               </p>
 
-              {/* Server-safe: form بدون onSubmit (يروح لـ /contact مع الإيميل كـ query) */}
-              <form action="/contact" method="get" className="mt-3">
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <input
-                    type="email"
-                    name="email"
-                    placeholder="Enter your email"
-                    className="w-full sm:flex-1 rounded-xl border border-zinc-800 bg-black/40 px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-yellow-500/60"
-                  />
-                  <button
-                    type="submit"
-                    className="inline-flex items-center justify-center rounded-xl bg-yellow-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-yellow-400 transition"
-                  >
-                    Subscribe
-                  </button>
-                </div>
-              </form>
+              {/* ✅ Client component only here */}
+              <NewsletterForm />
 
               <div className="mt-2 text-xs text-zinc-500">
                 By subscribing, you agree to our{" "}
@@ -118,7 +108,7 @@ function Footer() {
         </div>
 
         {/* BOTTOM BAR */}
-        <div className="mt-8 border-t border-zinc-900 pt-6">
+        <div className="mt-5 border-t border-zinc-900 pt-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div className="text-xs text-zinc-400">
               © {new Date().getFullYear()}{" "}
@@ -135,11 +125,7 @@ function Footer() {
   );
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body className="bg-black text-white">

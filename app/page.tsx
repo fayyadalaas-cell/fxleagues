@@ -240,13 +240,42 @@ function parseMonthDayTime(dateLabel: string, timeLabel: string) {
   return d1;
 }
 
+// ✅ Countdown helpers (Timer)
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function getCountdown(targetIso: string | null | undefined) {
+  if (!targetIso) return null;
+
+  const target = new Date(targetIso);
+  const now = new Date();
+  const diff = target.getTime() - now.getTime();
+
+  if (Number.isNaN(target.getTime())) return null;
+
+  // إذا الوقت خلص
+  if (diff <= 0) {
+    return { done: true, days: 0, hours: 0, mins: 0, secs: 0 };
+  }
+
+  const total = Math.floor(diff / 1000);
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const mins = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+
+  return { done: false, days, hours, mins, secs };
+}
+
 export default function HomePage() {
   const [nextTournament, setNextTournament] = useState<any>(null);
 const [loadingNext, setLoadingNext] = useState(true);
   const [champions, setChampions] = useState<ChampionRow[]>([]);
   const [loadingChampions, setLoadingChampions] = useState(true);
   const displayedChampions = champions.length === 0 ? demoChampions : champions;
-useEffect(() => {
+  
+  useEffect(() => {
   async function fetchNextTournament() {
    const nowIso = new Date().toISOString();
 
