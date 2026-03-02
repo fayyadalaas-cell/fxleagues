@@ -164,16 +164,16 @@ export default function BrokersPage() {
               key={b.key}
               className="rounded-2xl border border-zinc-800 bg-gradient-to-b from-zinc-950/60 to-black p-6 hover:border-yellow-500/40 transition"
             >
-              {/* ✅ Logo fills */}
-              <div className="relative h-16 w-full rounded-2xl border border-zinc-800 bg-white/95 overflow-hidden">
-                <Image
-                  src={b.logo}
-                  alt={b.name}
-                  fill
-                  sizes="600px"
-                  className="object-cover"
-                />
-              </div>
+              {/* ✅ Mobile logo (natural size, no stretching) */}
+<div className="relative h-14 w-full rounded-2xl border border-zinc-800 bg-black/30 overflow-hidden flex items-center justify-center">
+  <Image
+    src={b.logo}
+    alt={b.name}
+    fill
+    sizes="600px"
+    className="object-contain p-3"
+  />
+</div>
 
               <div className="mt-5">
                 <div className="flex items-start justify-between gap-4">
