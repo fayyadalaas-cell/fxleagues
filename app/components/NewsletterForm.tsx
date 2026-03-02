@@ -4,6 +4,7 @@ import { useState } from "react";
 
 function cleanEmail(input: string) {
   return String(input || "")
+    // iOS/Safari autofill can inject invisible chars (direction marks, zero-width, NBSP, BOM...)
     .replace(/[\s\u00A0\u200B-\u200F\u202A-\u202E\u2060\uFEFF]/g, "")
     .trim()
     .toLowerCase()
@@ -14,6 +15,7 @@ function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
+// Extract first valid email even if string contains weird characters
 function extractEmail(raw: string) {
   const match = String(raw || "").match(
     /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
@@ -30,11 +32,12 @@ export default function NewsletterForm() {
     e.preventDefault();
     setMsg(null);
 
+    // Step 1: Clean
     let v = cleanEmail(email);
 
+    // Step 2: If still invalid, try extracting
     if (!isValidEmail(v)) {
-      const extracted = extractEmail(email);
-      v = cleanEmail(extracted);
+      v = cleanEmail(extractEmail(email));
     }
 
     if (!v) {
@@ -56,24 +59,27 @@ export default function NewsletterForm() {
         body: JSON.stringify({ email: v, source: "footer" }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data: unknown = await res.json().catch(() => ({}));
+      const payload =
+        typeof data === "object" && data !== null ? (data as Record<string, unknown>) : {};
 
-      if (res.ok && data?.ok) {
-        if (data?.already) {
+      if (res.ok && payload.ok === true) {
+        if (payload.already === true) {
           setMsg("✅ You're already subscribed.");
         } else {
           setMsg("✅ Thanks for subscribing! You'll hear from us soon.");
           setEmail("");
         }
-      } else {
-        // 🔎 IMPORTANT: show exact error for debugging
-        setMsg(
-          `⚠️ Error ${res.status}: ${
-            data?.message || "Unknown server error"
-          }`
-        );
+        return;
       }
-    } catch (err: any) {
+
+      // Friendly messages (no debug)
+      if (res.status === 400) {
+        setMsg("⚠️ Please enter a valid email.");
+      } else {
+        setMsg("⚠️ Something went wrong. Please try again.");
+      }
+    } catch {
       setMsg("⚠️ Network error. Please try again.");
     } finally {
       setLoading(false);
