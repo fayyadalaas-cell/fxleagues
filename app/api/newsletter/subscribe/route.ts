@@ -3,9 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 
 function cleanEmail(input: string) {
   return String(input || "")
-    .replace(/[\s\u00A0\u200B\u200C\u200D]/g, "")
+    .replace(/[\s\u00A0\u200B-\u200F\u202A-\u202E\u2060\uFEFF]/g, "")
     .trim()
-    .toLowerCase();
+    .toLowerCase()
+    .replace(/[.,;:]+$/g, "");
 }
 
 function isValidEmail(email: string) {
@@ -15,7 +16,6 @@ function isValidEmail(email: string) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-
     const email = cleanEmail(body?.email);
     const source = String(body?.source || "footer").trim();
 
@@ -28,29 +28,27 @@ export async function POST(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // 1) Check if already exists
-    const { data: existing, error: selectErr } = await supabase
+    // Check existing
+    const { data: existing, error: selErr } = await supabase
       .from("newsletter_subscribers")
       .select("email,status")
       .eq("email", email)
       .maybeSingle();
 
-    if (selectErr) {
+    if (selErr) {
       return NextResponse.json({ ok: false, message: "Could not subscribe" }, { status: 500 });
     }
 
-    // If exists and active -> already subscribed
     if (existing?.email && existing?.status === "active") {
       return NextResponse.json({ ok: true, already: true, message: "Already subscribed" });
     }
 
-    // 2) If exists but not active, reactivate (or if not exists, insert)
-    // Use upsert to handle both cases safely
-    const { error: upsertErr } = await supabase
+    // Insert / Reactivate
+    const { error } = await supabase
       .from("newsletter_subscribers")
       .upsert({ email, status: "active", source }, { onConflict: "email" });
 
-    if (upsertErr) {
+    if (error) {
       return NextResponse.json({ ok: false, message: "Could not subscribe" }, { status: 500 });
     }
 
