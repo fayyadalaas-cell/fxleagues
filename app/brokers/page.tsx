@@ -164,15 +164,18 @@ export default function BrokersPage() {
               key={b.key}
               className="rounded-2xl border border-zinc-800 bg-gradient-to-b from-zinc-950/60 to-black p-6 hover:border-yellow-500/40 transition"
             >
-              {/* ✅ Mobile logo (natural size, no stretching) */}
-<div className="relative h-14 w-full rounded-2xl border border-zinc-800 bg-black/30 overflow-hidden flex items-center justify-center">
-  <Image
-    src={b.logo}
-    alt={b.name}
-    fill
-    sizes="600px"
-    className="object-contain p-3"
-  />
+              {/* ✅ Mobile logo (natural size, perfect fit) */}
+<div className="flex justify-center">
+  <div className="rounded-xl border border-zinc-800 bg-black/40 px-6 py-3 inline-flex items-center justify-center">
+    <Image
+      src={b.logo}
+      alt={b.name}
+      width={160}
+      height={60}
+      className="object-contain"
+      priority={b.key === "exness"}
+    />
+  </div>
 </div>
 
               <div className="mt-5">
