@@ -3,15 +3,15 @@
 import { useState } from "react";
 
 function cleanEmail(input: string) {
-  // iOS/Safari autofill sometimes adds invisible spaces / zero-width chars.
-  return input
-    .replace(/[\s\u00A0\u200B\u200C\u200D]/g, "") // spaces + NBSP + zero-width
+  // iOS/Safari autofill can inject invisible chars (direction marks, zero-width, NBSP, BOM...)
+  return String(input || "")
+    .replace(/[\s\u00A0\u200B-\u200F\u202A-\u202E\u2060\uFEFF]/g, "") // spaces + invisibles
     .trim()
-    .toLowerCase();
+    .toLowerCase()
+    .replace(/[.,;:]+$/g, ""); // just in case a trailing punctuation sneaks in
 }
 
 function isValidEmail(v: string) {
-  // simple, safe validation
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
@@ -47,8 +47,12 @@ export default function NewsletterForm() {
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data?.ok) {
-        setMsg("✅ Thanks for subscribing! You'll hear from us soon.");
-        setEmail("");
+        if (data?.already) {
+          setMsg("✅ You're already subscribed.");
+        } else {
+          setMsg("✅ Thanks for subscribing! You'll hear from us soon.");
+          setEmail("");
+        }
       } else if (res.status === 400) {
         setMsg("⚠️ Please enter a valid email.");
       } else {
