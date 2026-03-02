@@ -2,13 +2,14 @@
 import type { MetadataRoute } from "next";
 import { createClient } from "@supabase/supabase-js";
 
-export const revalidate = 3600; // كل ساعة (خفيف على السيرفر وعلى Supabase)
+export const revalidate = 3600; // every hour
 
 const siteUrl = "https://forexleagues.com";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // صفحات ثابتة
   const now = new Date();
+
+  // Static routes
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${siteUrl}/`, lastModified: now },
     { url: `${siteUrl}/schedule`, lastModified: now },
@@ -23,36 +24,38 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
-    // جلب slugs من جدول tournaments
+    // ✅ NOTE: your table doesn't have updated_at, so we use start_date / created_at
     const { data, error } = await supabase
       .from("tournaments")
-      .select("slug, updated_at, created_at")
+      .select("slug, start_date, created_at")
       .not("slug", "is", null);
 
-    if (error || !data) {
-      return staticRoutes; // لو فشل، رجّع الستاتيك بدون ما يوقع الموقع
-    }
+    if (error || !data?.length) return staticRoutes;
 
     const tournamentRoutes: MetadataRoute.Sitemap = data
       .map((t) => {
-        const slug = String(t.slug || "").trim();
+        const slug = String((t as any).slug || "").trim();
         if (!slug) return null;
 
-        const last =
-          (t.updated_at ? new Date(t.updated_at) : null) ??
-          (t.created_at ? new Date(t.created_at) : null) ??
+        const startDateRaw = (t as any).start_date;
+        const createdAtRaw = (t as any).created_at;
+
+        const lastModified =
+          (startDateRaw ? new Date(startDateRaw) : null) ??
+          (createdAtRaw ? new Date(createdAtRaw) : null) ??
           now;
 
         return {
           url: `${siteUrl}/tournaments/${encodeURIComponent(slug)}`,
-          lastModified: last,
+          lastModified,
         } as MetadataRoute.Sitemap[number];
       })
       .filter(Boolean) as MetadataRoute.Sitemap;
 
-    // منع التكرار لو تكرر slug
+    // De-dup by URL (in case of duplicate slugs)
     const unique = new Map<string, MetadataRoute.Sitemap[number]>();
     [...staticRoutes, ...tournamentRoutes].forEach((r) => unique.set(r.url, r));
+
     return Array.from(unique.values());
   } catch {
     return staticRoutes;
