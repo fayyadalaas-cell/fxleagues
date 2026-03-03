@@ -82,6 +82,37 @@ export const metadata: Metadata = {
   },
 };
 
+function SeoSchema() {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        name: "FX Leagues",
+        url: "https://forexleagues.com",
+        logo: "https://forexleagues.com/og-image.png",
+      },
+      {
+        "@type": "WebSite",
+        name: "FX Leagues",
+        url: "https://forexleagues.com",
+        potentialAction: {
+          "@type": "SearchAction",
+          target: "https://forexleagues.com/schedule?query={search_term_string}",
+          "query-input": "required name=search_term_string",
+        },
+      },
+    ],
+  };
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+    />
+  );
+}
+
 function Footer() {
   return (
     <footer className="relative bg-zinc-950 border-t border-zinc-800">
@@ -186,13 +217,13 @@ function Footer() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div className="text-xs text-zinc-400">
               © {new Date().getFullYear()}{" "}
-              <span className="text-white font-semibold">
-                Forex Leagues
-              </span>. All rights reserved.
+              <span className="text-white font-semibold">Forex Leagues</span>. All
+              rights reserved.
             </div>
 
             <div className="text-xs text-zinc-500 md:text-right">
-              Trading involves risk. This platform is competition-focused and demo-first.
+              Trading involves risk. This platform is competition-focused and
+              demo-first.
             </div>
           </div>
         </div>
@@ -206,6 +237,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="bg-black text-white">
         <AuthProvider>
+          <SeoSchema />
           <Navbar />
           <Suspense fallback={null}>
             <VerifyEmailBanner />
