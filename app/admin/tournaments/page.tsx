@@ -96,18 +96,16 @@ export default async function AdminTournamentsPage() {
             <div className="grid grid-cols-12 border-b border-zinc-800 px-4 py-3 text-xs text-zinc-400">
               <div className="col-span-4">Tournament</div>
               <div className="col-span-3">Start</div>
-              <div className="col-span-3">Type / Status</div>
+              <div className="col-span-2">Type / Status</div>
               <div className="col-span-1 text-right">Pool</div>
-              <div className="col-span-1 text-right">Open</div>
+              <div className="col-span-2 text-right">Actions</div>
             </div>
 
             <div className="divide-y divide-zinc-800">
               {items.map((t) => (
-                <Link
+                <div
                   key={t.id}
-                  href={`/admin/tournaments/${t.id}`}
                   className="grid grid-cols-12 items-center px-4 py-3 hover:bg-white/[0.03] transition"
-                  title="Open tournament"
                 >
                   {/* Tournament */}
                   <div className="col-span-4 min-w-0">
@@ -123,28 +121,40 @@ export default async function AdminTournamentsPage() {
                   </div>
 
                   {/* Type / Status */}
-                  <div className="col-span-3 flex items-center gap-2">
+                  <div className="col-span-2 flex items-center gap-2 min-w-0">
                     <TypePill type={t.type} />
                     <StatusPill status={t.status} />
                     {t.winners_count ? (
-                      <span className="ml-1 text-[11px] text-zinc-500">
+                      <span className="ml-1 text-[11px] text-zinc-500 whitespace-nowrap">
                         Winners: {t.winners_count}
                       </span>
                     ) : null}
                   </div>
 
                   {/* Prize pool */}
-                  <div className="col-span-1 text-right text-[13px] font-semibold">
+                  <div className="col-span-1 text-right text-[13px] font-semibold whitespace-nowrap">
                     {money(Number(t.prize_pool ?? 0))}
                   </div>
 
-                  {/* Open chevron */}
-                  <div className="col-span-1 text-right text-zinc-400">
-                    <span className="inline-flex items-center justify-end gap-1 text-[12px] hover:text-zinc-200">
+                  {/* Actions */}
+                  <div className="col-span-2 flex items-center justify-end gap-3">
+                    <Link
+                      href={`/admin/tournaments/${t.id}`}
+                      className="inline-flex items-center gap-1 text-[12px] text-zinc-400 hover:text-zinc-200 whitespace-nowrap"
+                      title="Open tournament"
+                    >
                       Open <span aria-hidden>→</span>
-                    </span>
+                    </Link>
+
+                    <Link
+                      href={`/admin/tournaments/${t.id}/delete`}
+                      className="inline-flex items-center rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-[12px] text-red-200 hover:bg-red-500/20 whitespace-nowrap"
+                      title="Delete tournament"
+                    >
+                      Delete
+                    </Link>
                   </div>
-                </Link>
+                </div>
               ))}
 
               {items.length === 0 && (

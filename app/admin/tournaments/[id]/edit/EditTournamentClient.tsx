@@ -98,6 +98,11 @@ export default function EditTournamentClient({ initial }: { initial: TournamentR
   const onDelete = async () => {
     if (!safeId) return;
 
+      if (status === "LIVE") {
+    setErr("You can't delete a LIVE tournament. Set it to COMPLETED first.");
+    return;
+  }
+  
     const ok = confirm("Delete this tournament? This cannot be undone.");
     if (!ok) return;
 

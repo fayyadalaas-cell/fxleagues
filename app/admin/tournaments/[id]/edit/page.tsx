@@ -16,6 +16,13 @@ type TournamentRow = {
   type: "Daily" | "Weekly" | "Monthly" | "Special" | string | null;
   status: "UPCOMING" | "LIVE" | "COMPLETED" | string | null;
   prize_pool: number | null;
+
+  // ✅ Sponsor Settings
+  sponsor_name: string | null;
+  sponsor_logo_url: string | null;
+  demo_signup_url: string | null;
+  platform_download_url: string | null;
+  sponsor_logo_key: string | null;
 };
 
 export default async function Page({ params }: { params: { id: string } }) {
@@ -28,10 +35,13 @@ export default async function Page({ params }: { params: { id: string } }) {
   if (!id) redirect("/admin/tournaments");
 
   const { data, error } = await supabase
-    .from("tournaments")
-    .select("id,title,slug,description,start_date,end_date,type,status,prize_pool")
-    .eq("id", id)
-    .single();
+  .from("tournaments")
+  .select(
+    "id,title,slug,description,start_date,end_date,type,status,prize_pool," +
+      "sponsor_name,sponsor_logo_url,demo_signup_url,platform_download_url,sponsor_logo_key"
+  )
+  .eq("id", id)
+  .single<TournamentRow>();
 
   if (error || !data) {
     return (

@@ -149,7 +149,7 @@ export default function Next7DaysFromDb({ title = "Next 7 Days", limit = 7 }: Pr
   // ✅ Top (limit) upcoming within 30 days + LIVE
   const topN = useMemo(() => {
     const now = new Date();
-    const WINDOW_DAYS = 30;
+    const WINDOW_DAYS = 90;
     const windowEnd = new Date(now.getTime() + WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
     return rows
