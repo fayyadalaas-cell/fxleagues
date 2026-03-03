@@ -359,7 +359,7 @@ const liveId: string | undefined = undefined;
                 <Link
                 href="/winners"
                 className="hidden sm:inline-flex border border-zinc-700 px-5 py-3 rounded-lg hover:bg-zinc-900 transition"
-                   >git commit -m "Fix mobile hero buttons"
+                   >
                     Winners
                 </Link>
               </div>
