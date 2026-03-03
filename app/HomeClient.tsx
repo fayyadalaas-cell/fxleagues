@@ -351,17 +351,17 @@ const liveId: string | undefined = undefined;
                   How it works
                 </a>
                 <Link
-                  href="/brokers"
-                  className="border border-zinc-700 px-5 py-3 rounded-lg hover:bg-zinc-900 transition"
-                >
+                href="/brokers"
+                className="hidden sm:inline-flex border border-zinc-700 px-5 py-3 rounded-lg hover:bg-zinc-900 transition"
+                  >
                   Brokers
                 </Link>
                 <Link
-  href="/winners"
-  className="border border-zinc-700 px-5 py-3 rounded-lg hover:bg-zinc-900 transition"
->
-  Winners
-</Link>
+                href="/winners"
+                className="hidden sm:inline-flex border border-zinc-700 px-5 py-3 rounded-lg hover:bg-zinc-900 transition"
+                   >
+                    Winners
+                </Link>
               </div>
 
               <div className="mt-8 hidden sm:flex flex-wrap gap-2">
