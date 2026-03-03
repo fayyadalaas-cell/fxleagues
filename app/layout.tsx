@@ -37,6 +37,10 @@ export const metadata: Metadata = {
     canonical: "/",
   },
 
+  verification: {
+  google: "nkpwRFo3Kpfj17RHyT-VX3hV1NTq-VVjSE7_IrDdyRM",
+},
+
   openGraph: {
     title: "FX Leagues | Forex Trading Contests & Leaderboards",
     description:
