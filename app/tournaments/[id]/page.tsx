@@ -14,19 +14,6 @@ type DbTournament = {
   sponsor_logo_key?: string | null;
 };
 
-function logoPathFromKey(key?: string | null) {
-  const k = (key || "").toLowerCase();
-  const map: Record<string, string> = {
-    exness: "/brokers/exness.png",
-    icmarkets: "/brokers/icmarkets.png",
-    fxtm: "/brokers/fxtm.png",
-    fxm: "/brokers/fxtm.png",
-    vantage: "/brokers/vantage.png",
-    fxleagues: "/brokers/fxleagues.png",
-  };
-  return map[k] || "/logo.png";
-}
-
 export async function generateMetadata({
   params,
 }: {
@@ -37,29 +24,30 @@ export async function generateMetadata({
   const supabase = await createClient();
   const { data } = await supabase
     .from("tournaments")
-    .select("title,description,slug,sponsor_name,sponsor_logo_url,sponsor_logo_key")
+    .select("title,description,slug")
     .eq("slug", slug)
     .maybeSingle<DbTournament>();
 
   const siteName = "Forex Leagues";
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://forexleagues.com";
 
-  const title = data?.title ? `${data.title} | ${siteName}` : `${siteName} Tournament`;
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    "https://forexleagues.com";
+
+  const title = data?.title
+    ? `${data.title} | ${siteName}`
+    : `${siteName} Tournament`;
+
   const desc =
     (data?.description && data.description.trim()) ||
     "Join this verified forex tournament on Forex Leagues. Compete, rank up, and win prizes.";
 
-  const sponsorKey = (data?.sponsor_logo_key || "").toLowerCase();
-  const img =
-    (data?.sponsor_logo_url &&
-      (data.sponsor_logo_url.startsWith("http") || data.sponsor_logo_url.startsWith("/"))
-      ? data.sponsor_logo_url
-      : logoPathFromKey(sponsorKey)) || "/logo.png";
-
-  // لازم تكون Absolute URL للصورة والرابط
   const url = `${baseUrl}/tournaments/${slug}`;
-  const imageUrl = img.startsWith("http") ? img : `${baseUrl}${img}`;
+
+  // 👇 الصورة الجديدة التي ستستخدمها Facebook / WhatsApp
+  const ogImage = `${baseUrl}/api/og/tournament?slug=${encodeURIComponent(
+    slug
+  )}&v=1`;
 
   return {
     title,
@@ -74,7 +62,7 @@ export async function generateMetadata({
       description: desc,
       images: [
         {
-          url: imageUrl,
+          url: ogImage,
           width: 1200,
           height: 630,
           alt: data?.title || "Forex Leagues Tournament",
@@ -86,7 +74,7 @@ export async function generateMetadata({
       card: "summary_large_image",
       title,
       description: desc,
-      images: [imageUrl],
+      images: [ogImage],
     },
   };
 }
