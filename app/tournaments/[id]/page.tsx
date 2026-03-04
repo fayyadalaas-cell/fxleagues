@@ -13,6 +13,18 @@ type DbTournament = {
 
 const OG_VERSION = 2; // غيّرها كل مرة بدك تكسر كاش فيسبوك/واتس
 
+function normalizeSlug(input?: string) {
+  const raw = (input ?? "").trim();
+  const decoded = raw ? decodeURIComponent(raw) : "";
+  const s = decoded.trim();
+
+  // حالات شائعة عند crawlers أو bugs
+  if (!s) return "";
+  if (s === "undefined" || s === "null") return "";
+
+  return s;
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -24,16 +36,16 @@ export async function generateMetadata({
 
   const siteName = "Forex Leagues";
 
-  // ✅ Fix: params.id ممكن يطلع undefined لبعض crawlers
-  const slug = decodeURIComponent(params?.id ?? "");
+  const paramSlug = normalizeSlug(params?.id);
 
-  // ✅ إذا ما في slug، لا ترجع /undefined ولا OG undefined
-  if (!slug) {
+  // ✅ إذا ما وصل slug نهائيًا (بدل ما نطلع /undefined)
+  if (!paramSlug) {
     const fallbackTitle = `${siteName} Tournament`;
     const fallbackDesc =
       "Join verified forex tournaments on Forex Leagues. Compete, rank up, and win prizes.";
     const fallbackUrl = `${baseUrl}/tournaments`;
 
+    // خليها صورة عامة (أو خليها OG عامة للموقع)
     const fallbackOgImage = `${baseUrl}/api/og/tournament?slug=${encodeURIComponent(
       "tournament"
     )}&v=${OG_VERSION}`;
@@ -70,14 +82,17 @@ export async function generateMetadata({
     };
   }
 
-  const url = `${baseUrl}/tournaments/${encodeURIComponent(slug)}`;
-
   const supabase = await createClient();
   const { data } = await supabase
     .from("tournaments")
     .select("title,description,slug")
-    .eq("slug", slug)
+    .eq("slug", paramSlug)
     .maybeSingle<DbTournament>();
+
+  // ✅ لو DB فيها slug مضبوط، استخدمه (أكثر أمانًا)
+  const safeSlug = normalizeSlug(data?.slug ?? paramSlug);
+
+  const url = `${baseUrl}/tournaments/${encodeURIComponent(safeSlug)}`;
 
   const title = data?.title
     ? `${data.title} | ${siteName}`
@@ -89,7 +104,7 @@ export async function generateMetadata({
 
   // ✅ OG image endpoint (absolute URL + version)
   const ogImage = `${baseUrl}/api/og/tournament?slug=${encodeURIComponent(
-    slug
+    safeSlug
   )}&v=${OG_VERSION}`;
 
   return {
@@ -97,8 +112,6 @@ export async function generateMetadata({
     title,
     description: desc,
     alternates: { canonical: url },
-
-    // إذا بدك تمنع الأرشفة مؤقتًا غيّرها إلى: { index: false, follow: false }
     robots: { index: true, follow: true },
 
     openGraph: {
