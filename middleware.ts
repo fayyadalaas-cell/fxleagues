@@ -23,7 +23,7 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  // يثبت/يحدث session cookies على كل request (غير /api/og لأننا استثنيناه)
+  // يثبت/يحدث session cookies على كل request (للصفحات العادية فقط)
   await supabase.auth.getUser();
 
   return res;
@@ -31,7 +31,7 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // ✅ استثناء /api/og بالكامل لأنه لازم يرجّع صورة (binary) بدون ما الـ middleware يلمسه
-    "/((?!api/og|api/og/.*|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // ✅ استثناء API routes + OG images + Next static
+    "/((?!api|_next/static|_next/image|favicon.ico|.*opengraph-image|.*twitter-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
