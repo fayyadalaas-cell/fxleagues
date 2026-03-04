@@ -11,17 +11,14 @@ type DbTournament = {
   slug: string | null;
 };
 
+const OG_VERSION = 2; // غيّرها كل مرة بدك تكسر كاش فيسبوك/واتس
+
 export async function generateMetadata({
   params,
 }: {
   params: { id: string };
 }): Promise<Metadata> {
   const slug = params.id;
-
-  const siteName = "Forex Leagues";
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-    "https://forexleagues.com";
 
   const supabase = await createClient();
   const { data } = await supabase
@@ -30,24 +27,25 @@ export async function generateMetadata({
     .eq("slug", slug)
     .maybeSingle<DbTournament>();
 
-  const pageTitle = data?.title
-    ? `${data.title} | ${siteName}`
-    : `${siteName} Tournament`;
+  const siteName = "Forex Leagues";
+
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    "https://forexleagues.com";
+
+  const title = data?.title ? `${data.title} | ${siteName}` : `${siteName} Tournament`;
 
   const desc =
     (data?.description && data.description.trim()) ||
     "Join this verified forex tournament on Forex Leagues. Compete, rank up, and win prizes.";
 
-  const url = `${baseUrl}/tournaments/${encodeURIComponent(slug)}`;
+  const url = `${baseUrl}/tournaments/${slug}`;
 
-  // ✅ OG image endpoint (absolute) + version busting for caches
-  const ogImage = `${baseUrl}/api/og/tournament?slug=${encodeURIComponent(
-    slug
-  )}&v=1`;
+  // ✅ OG image endpoint (absolute URL + version)
+  const ogImage = `${baseUrl}/api/og/tournament?slug=${encodeURIComponent(slug)}&v=${OG_VERSION}`;
 
   return {
-    metadataBase: new URL(baseUrl),
-    title: pageTitle,
+    title,
     description: desc,
     alternates: { canonical: url },
 
@@ -55,7 +53,7 @@ export async function generateMetadata({
       type: "website",
       url,
       siteName,
-      title: pageTitle,
+      title,
       description: desc,
       images: [
         {
@@ -69,7 +67,7 @@ export async function generateMetadata({
 
     twitter: {
       card: "summary_large_image",
-      title: pageTitle,
+      title,
       description: desc,
       images: [ogImage],
     },
