@@ -20,6 +20,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const slug = params.id;
 
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    "https://forexleagues.com";
+
+  const url = `${baseUrl}/tournaments/${encodeURIComponent(slug)}`;
+
   const supabase = await createClient();
   const { data } = await supabase
     .from("tournaments")
@@ -29,28 +35,30 @@ export async function generateMetadata({
 
   const siteName = "Forex Leagues";
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-    "https://forexleagues.com";
-
-  const title = data?.title ? `${data.title} | ${siteName}` : `${siteName} Tournament`;
+  const title = data?.title
+    ? `${data.title} | ${siteName}`
+    : `${siteName} Tournament`;
 
   const desc =
     (data?.description && data.description.trim()) ||
     "Join this verified forex tournament on Forex Leagues. Compete, rank up, and win prizes.";
 
-  const url = `${baseUrl}/tournaments/${slug}`;
-
   // ✅ OG image endpoint (absolute URL + version)
-  const ogImage = `${baseUrl}/api/og/tournament?slug=${encodeURIComponent(slug)}&v=${OG_VERSION}`;
+  const ogImage = `${baseUrl}/api/og/tournament?slug=${encodeURIComponent(
+    slug
+  )}&v=${OG_VERSION}`;
 
   return {
+    metadataBase: new URL(baseUrl),
     title,
     description: desc,
     alternates: { canonical: url },
 
+    // إذا بدك تمنع الأرشفة مؤقتًا غيّرها إلى: { index: false, follow: false }
+    robots: { index: true, follow: true },
+
     openGraph: {
-      type: "website",
+      type: "article",
       url,
       siteName,
       title,
