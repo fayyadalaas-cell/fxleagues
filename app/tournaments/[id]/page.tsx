@@ -9,9 +9,6 @@ type DbTournament = {
   title: string;
   description: string | null;
   slug: string | null;
-  sponsor_name?: string | null;
-  sponsor_logo_url?: string | null;
-  sponsor_logo_key?: string | null;
 };
 
 export async function generateMetadata({
@@ -21,6 +18,11 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const slug = params.id;
 
+  const siteName = "Forex Leagues";
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    "https://forexleagues.com";
+
   const supabase = await createClient();
   const { data } = await supabase
     .from("tournaments")
@@ -28,13 +30,7 @@ export async function generateMetadata({
     .eq("slug", slug)
     .maybeSingle<DbTournament>();
 
-  const siteName = "Forex Leagues";
-
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-    "https://forexleagues.com";
-
-  const title = data?.title
+  const pageTitle = data?.title
     ? `${data.title} | ${siteName}`
     : `${siteName} Tournament`;
 
@@ -42,15 +38,16 @@ export async function generateMetadata({
     (data?.description && data.description.trim()) ||
     "Join this verified forex tournament on Forex Leagues. Compete, rank up, and win prizes.";
 
-  const url = `${baseUrl}/tournaments/${slug}`;
+  const url = `${baseUrl}/tournaments/${encodeURIComponent(slug)}`;
 
-  // 👇 الصورة الجديدة التي ستستخدمها Facebook / WhatsApp
+  // ✅ OG image endpoint (absolute) + version busting for caches
   const ogImage = `${baseUrl}/api/og/tournament?slug=${encodeURIComponent(
     slug
   )}&v=1`;
 
   return {
-    title,
+    metadataBase: new URL(baseUrl),
+    title: pageTitle,
     description: desc,
     alternates: { canonical: url },
 
@@ -58,7 +55,7 @@ export async function generateMetadata({
       type: "website",
       url,
       siteName,
-      title,
+      title: pageTitle,
       description: desc,
       images: [
         {
@@ -72,7 +69,7 @@ export async function generateMetadata({
 
     twitter: {
       card: "summary_large_image",
-      title,
+      title: pageTitle,
       description: desc,
       images: [ogImage],
     },
