@@ -1067,36 +1067,7 @@ const sponsorLogoSrc =
   <InviteFriend tournamentSlug={t.slug || slug} />
 </div>
 
-              {/* Quick links */}
-              <div className="rounded-2xl border border-zinc-800 bg-black/20 p-4">
-                <div className="text-xs text-zinc-400">Quick setup</div>
-                <div className="mt-2 text-sm text-zinc-300">
-                  Platform: <span className="text-white font-semibold">{platformInfo.platformName}</span>
-                </div>
-                <div className="mt-2 flex gap-2">
-                  <a
-                    href={platformInfo.downloadUrl || "#"}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex-1 inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold border border-zinc-700 bg-black/20 hover:bg-zinc-900"
-                  >
-                    Download
-                  </a>
-                  <a
-                    href={platformInfo.demoSignupUrl || "#"}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex-1 inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold bg-yellow-500 text-black hover:brightness-95"
-                  >
-                    Open Demo
-                  </a>
-                </div>
-
-                <div className="mt-3 text-xs text-zinc-500">
-                  Leverage: <span className="text-zinc-200 font-semibold">{LEVERAGE}</span> • Starting balance:{" "}
-                  <span className="text-zinc-200 font-semibold">{STARTING_BALANCE}</span>
-                </div>
-              </div>
+             
 
               <div className="text-xs text-zinc-500">
                 {/* Sponsor CTA Box */}
