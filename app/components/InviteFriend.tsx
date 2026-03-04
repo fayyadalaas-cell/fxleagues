@@ -36,17 +36,26 @@ export default function InviteFriend({ tournamentSlug, refCode }: Props) {
     }
   }
 
-  const text = encodeURIComponent("Join me in this Forex Leagues tournament:");
-  const encUrl = encodeURIComponent(inviteUrl);
+ const message = `Join this Forex Leagues tournament:
 
-  // ✅ تحديث Twitter إلى X
-  const xShare = `https://x.com/intent/tweet?text=${text}%20${encUrl}`;
+${inviteUrl}`;
 
-  // ✅ إضافة Facebook
-  const facebookShare = `https://www.facebook.com/sharer/sharer.php?u=${encUrl}`;
+const encMessage = encodeURIComponent(message);
+const encUrl = encodeURIComponent(inviteUrl);
 
-  // ✅ WhatsApp فقط
-  const whatsapp = `https://wa.me/?text=${text}%20${encUrl}`;
+// X
+const xShare = `https://x.com/intent/tweet?text=${encMessage}`;
+
+// Facebook
+const facebookShare = `https://www.facebook.com/sharer/sharer.php?u=${encUrl}`;
+
+// Telegram
+const telegramShare = `https://t.me/share/url?url=${encUrl}&text=${encodeURIComponent(
+  "Join this tournament on Forex Leagues"
+)}`;
+
+// WhatsApp
+const whatsapp = `https://wa.me/?text=${encMessage}`;
 
   return (
     <>

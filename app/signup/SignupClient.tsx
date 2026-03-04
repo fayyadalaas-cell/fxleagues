@@ -86,6 +86,10 @@ export default function SignupClient({ nextUrl }: { nextUrl: string }) {
     if (pwErr) return setErrorMsg(pwErr);
 
     setLoading(true);
+    const refFromUrl =
+  typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("ref")
+    : null;
 
     const cleanUsername = normalizeUsername(username);
     const cleanPhone = cleanInvisibleChars(phone);
@@ -106,10 +110,13 @@ export default function SignupClient({ nextUrl }: { nextUrl: string }) {
           safeNext
         )}`,
         data: {
-          full_name: name.trim(),
-          username: cleanUsername,
-          phone: cleanPhone,
-        },
+        full_name: name.trim(),
+        username: cleanUsername,
+        phone: cleanPhone,
+
+       // ✅ 2) خزّن مين دعاه (ref) داخل user metadata
+       referred_by: refFromUrl ? normalizeUsername(refFromUrl) : null,
+       },
       },
     });
 
