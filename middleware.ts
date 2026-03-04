@@ -23,7 +23,7 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  // يثبت/يحدث session cookies على كل request
+  // تحديث session cookies لكل request
   await supabase.auth.getUser();
 
   return res;
@@ -31,6 +31,7 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // استثناء ملفات Next الداخلية + الصور + OG images
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|opengraph-image|twitter-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
