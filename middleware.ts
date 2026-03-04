@@ -2,6 +2,16 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(req: NextRequest) {
+  // ✅ لا تلمس API ولا ملفات OG image routes
+  const { pathname } = req.nextUrl;
+
+  if (
+    pathname.startsWith("/api/") ||
+    pathname.includes("/opengraph-image")
+  ) {
+    return NextResponse.next();
+  }
+
   let res = NextResponse.next({
     request: { headers: req.headers },
   });
@@ -23,7 +33,7 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  // تحديث session cookies لكل request
+  // يثبت/يحدث session cookies على كل request (لـ pages فقط)
   await supabase.auth.getUser();
 
   return res;
@@ -31,7 +41,7 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // استثناء ملفات Next الداخلية + الصور + OG images
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|opengraph-image|twitter-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // شغّل الميدل وير على كل شيء ما عدا /api وملفات ثابتة
+    "/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
