@@ -25,6 +25,15 @@ function money(n: number) {
   }
 }
 
+function normalizeSlug(input?: string | null) {
+  const raw = (input ?? "").trim();
+  const decoded = raw ? decodeURIComponent(raw) : "";
+  const s = decoded.trim();
+  if (!s) return "";
+  if (s === "undefined" || s === "null") return "";
+  return s;
+}
+
 function logoPathFromKey(key?: string | null) {
   const k = (key || "").toLowerCase();
   const map: Record<string, string> = {
@@ -39,15 +48,17 @@ function logoPathFromKey(key?: string | null) {
 }
 
 async function fetchTournamentBySlug(slug: string): Promise<DbTournament | null> {
+  const safeSlug = normalizeSlug(slug);
+  if (!safeSlug) return null;
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
   if (!url || !key) return null;
 
   const endpoint =
     `${url.replace(/\/$/, "")}/rest/v1/tournaments` +
     `?select=title,description,prize_pool,sponsor_name,sponsor_logo_url,sponsor_logo_key,entry,type,status` +
-    `&slug=eq.${encodeURIComponent(slug)}` +
+    `&slug=eq.${encodeURIComponent(safeSlug)}` +
     `&limit=1`;
 
   const res = await fetch(endpoint, {
@@ -56,7 +67,6 @@ async function fetchTournamentBySlug(slug: string): Promise<DbTournament | null>
       Authorization: `Bearer ${key}`,
       Accept: "application/json",
     },
-    // مهم للـ OG عشان ما يعلق على كاش غريب
     cache: "no-store",
   });
 
@@ -66,8 +76,14 @@ async function fetchTournamentBySlug(slug: string): Promise<DbTournament | null>
   return arr?.[0] ?? null;
 }
 
-export default async function Image({ params }: { params: { id: string } }) {
-  const slug = params.id;
+type Props = {
+  // Next 16 قد يمرّر params كـ Promise
+  params: { id?: string } | Promise<{ id?: string }>;
+};
+
+export default async function Image({ params }: Props) {
+  const resolvedParams = await Promise.resolve(params);
+  const slug = normalizeSlug(resolvedParams?.id);
 
   const baseUrlRaw =
     process.env.NEXT_PUBLIC_SITE_URL ||
@@ -104,10 +120,12 @@ export default async function Image({ params }: { params: { id: string } }) {
           width: "1200px",
           height: "630px",
           display: "flex",
-          background: "linear-gradient(135deg, #070A12 0%, #0B1220 55%, #06080F 100%)",
+          background:
+            "linear-gradient(135deg, #070A12 0%, #0B1220 55%, #06080F 100%)",
           padding: "56px",
           color: "#ffffff",
-          fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial",
+          fontFamily:
+            "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial",
           position: "relative",
         }}
       >
@@ -201,7 +219,7 @@ export default async function Image({ params }: { params: { id: string } }) {
               </div>
 
               <div style={{ fontSize: 18, color: "rgba(255,255,255,0.60)" }}>
-                forexleagues.com/tournaments/{slug}
+                {slug ? `forexleagues.com/tournaments/${slug}` : "forexleagues.com"}
               </div>
             </div>
           </div>
@@ -233,7 +251,11 @@ export default async function Image({ params }: { params: { id: string } }) {
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={logoUrl} alt={sponsorName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <img
+                  src={logoUrl}
+                  alt={sponsorName}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
               </div>
 
               <div style={{ marginTop: 14, fontSize: 16, color: "rgba(255,255,255,0.60)" }}>
