@@ -1,6 +1,5 @@
 /* app/tournaments/[id]/opengraph-image.tsx */
 import { ImageResponse } from "next/og";
-import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "edge";
 export const size = { width: 1200, height: 630 };
@@ -39,19 +38,44 @@ function logoPathFromKey(key?: string | null) {
   return map[k] || "/logo.png";
 }
 
+async function fetchTournamentBySlug(slug: string): Promise<DbTournament | null> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !key) return null;
+
+  const endpoint =
+    `${url.replace(/\/$/, "")}/rest/v1/tournaments` +
+    `?select=title,description,prize_pool,sponsor_name,sponsor_logo_url,sponsor_logo_key,entry,type,status` +
+    `&slug=eq.${encodeURIComponent(slug)}` +
+    `&limit=1`;
+
+  const res = await fetch(endpoint, {
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      Accept: "application/json",
+    },
+    // مهم للـ OG عشان ما يعلق على كاش غريب
+    cache: "no-store",
+  });
+
+  if (!res.ok) return null;
+
+  const arr = (await res.json()) as DbTournament[];
+  return arr?.[0] ?? null;
+}
+
 export default async function Image({ params }: { params: { id: string } }) {
   const slug = params.id;
 
-  const baseUrl =
-    (process.env.NEXT_PUBLIC_SITE_URL || "https://forexleagues.com").replace(/\/$/, "");
+  const baseUrlRaw =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://forexleagues.com");
 
-  // Fetch tournament (public read policy لازم تكون شغالة)
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("tournaments")
-    .select("title,description,prize_pool,sponsor_name,sponsor_logo_url,sponsor_logo_key,entry,type,status")
-    .eq("slug", slug)
-    .maybeSingle<DbTournament>();
+  const baseUrl = baseUrlRaw.replace(/\/$/, "");
+
+  const data = await fetchTournamentBySlug(slug);
 
   const title = data?.title || "Forex Leagues Tournament";
   const desc =
@@ -73,7 +97,6 @@ export default async function Image({ params }: { params: { id: string } }) {
 
   const logoUrl = rawLogo.startsWith("http") ? rawLogo : `${baseUrl}${rawLogo}`;
 
-  // Dark navy + gold theme
   return new ImageResponse(
     (
       <div
@@ -88,7 +111,6 @@ export default async function Image({ params }: { params: { id: string } }) {
           position: "relative",
         }}
       >
-        {/* subtle glow */}
         <div
           style={{
             position: "absolute",
@@ -98,7 +120,6 @@ export default async function Image({ params }: { params: { id: string } }) {
           }}
         />
 
-        {/* frame */}
         <div
           style={{
             position: "absolute",
@@ -108,11 +129,8 @@ export default async function Image({ params }: { params: { id: string } }) {
           }}
         />
 
-        {/* content */}
         <div style={{ position: "relative", display: "flex", gap: "28px", width: "100%" }}>
-          {/* Left column */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-            {/* brand */}
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <div
                 style={{
@@ -123,15 +141,12 @@ export default async function Image({ params }: { params: { id: string } }) {
                   boxShadow: "0 0 18px rgba(234,179,8,0.45)",
                 }}
               />
-              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 0.2 }}>
-                Forex Leagues
-              </div>
+              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 0.2 }}>Forex Leagues</div>
               <div style={{ fontSize: 18, color: "rgba(255,255,255,0.55)" }}>
                 Verified Forex Competitions
               </div>
             </div>
 
-            {/* title */}
             <div
               style={{
                 marginTop: 26,
@@ -144,12 +159,10 @@ export default async function Image({ params }: { params: { id: string } }) {
               {title}
             </div>
 
-            {/* desc */}
             <div style={{ marginTop: 18, fontSize: 24, lineHeight: 1.3, color: "rgba(255,255,255,0.78)" }}>
               {desc.length > 140 ? desc.slice(0, 140) + "…" : desc}
             </div>
 
-            {/* chips */}
             <div style={{ marginTop: 26, display: "flex", gap: 12, flexWrap: "wrap" }}>
               {[
                 { label: "ENTRY", value: entry },
@@ -168,15 +181,12 @@ export default async function Image({ params }: { params: { id: string } }) {
                     background: "rgba(0,0,0,0.25)",
                   }}
                 >
-                  <div style={{ fontSize: 14, color: "rgba(255,255,255,0.55)", fontWeight: 700 }}>
-                    {c.label}
-                  </div>
+                  <div style={{ fontSize: 14, color: "rgba(255,255,255,0.55)", fontWeight: 700 }}>{c.label}</div>
                   <div style={{ fontSize: 18, fontWeight: 900 }}>{c.value}</div>
                 </div>
               ))}
             </div>
 
-            {/* bottom */}
             <div style={{ marginTop: "auto", display: "flex", alignItems: "flex-end", gap: 18 }}>
               <div
                 style={{
@@ -186,12 +196,8 @@ export default async function Image({ params }: { params: { id: string } }) {
                   border: "1px solid rgba(234,179,8,0.25)",
                 }}
               >
-                <div style={{ fontSize: 14, color: "rgba(255,255,255,0.65)", fontWeight: 700 }}>
-                  Prize Pool
-                </div>
-                <div style={{ fontSize: 34, fontWeight: 950, color: "#EAB308" }}>
-                  ${money(prizePool)}
-                </div>
+                <div style={{ fontSize: 14, color: "rgba(255,255,255,0.65)", fontWeight: 700 }}>Prize Pool</div>
+                <div style={{ fontSize: 34, fontWeight: 950, color: "#EAB308" }}>${money(prizePool)}</div>
               </div>
 
               <div style={{ fontSize: 18, color: "rgba(255,255,255,0.60)" }}>
@@ -200,16 +206,7 @@ export default async function Image({ params }: { params: { id: string } }) {
             </div>
           </div>
 
-          {/* Right column (Sponsor) */}
-          <div
-            style={{
-              width: 360,
-              display: "flex",
-              flexDirection: "column",
-              gap: 14,
-              justifyContent: "flex-start",
-            }}
-          >
+          <div style={{ width: 360, display: "flex", flexDirection: "column", gap: 14 }}>
             <div
               style={{
                 borderRadius: 26,
@@ -218,9 +215,7 @@ export default async function Image({ params }: { params: { id: string } }) {
                 padding: 18,
               }}
             >
-              <div style={{ fontSize: 16, color: "rgba(255,255,255,0.60)", fontWeight: 800 }}>
-                Sponsor
-              </div>
+              <div style={{ fontSize: 16, color: "rgba(255,255,255,0.60)", fontWeight: 800 }}>Sponsor</div>
               <div style={{ marginTop: 8, fontSize: 28, fontWeight: 950 }}>{sponsorName}</div>
 
               <div
@@ -238,11 +233,7 @@ export default async function Image({ params }: { params: { id: string } }) {
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={logoUrl}
-                  alt={sponsorName}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
+                <img src={logoUrl} alt={sponsorName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               </div>
 
               <div style={{ marginTop: 14, fontSize: 16, color: "rgba(255,255,255,0.60)" }}>
