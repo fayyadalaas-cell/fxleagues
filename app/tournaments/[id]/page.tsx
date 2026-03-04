@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import InviteFriend from "@/app/components/InviteFriend";
 
 type Row = {
   rank: number;
@@ -1061,6 +1062,10 @@ const sponsorLogoSrc =
                   <div className="mt-2 text-2xl font-extrabold">{participantsCount}</div>
                 </div>
               </div>
+
+              <div className="rounded-2xl border border-zinc-800 bg-black/20 p-4">
+  <InviteFriend tournamentSlug={t.slug || slug} />
+</div>
 
               {/* Quick links */}
               <div className="rounded-2xl border border-zinc-800 bg-black/20 p-4">
