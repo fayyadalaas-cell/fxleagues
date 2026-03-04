@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
+export const contentType = "image/png";
 
 function money(n: number) {
   try {
@@ -27,7 +28,6 @@ export async function GET(req: Request) {
   const { searchParams, origin } = new URL(req.url);
   const slug = searchParams.get("slug") || "";
 
-  // ✅ إذا ما في slug، رجّع صورة افتراضية بسيطة بدل white
   const fallback = () =>
     new ImageResponse(
       (
@@ -53,14 +53,14 @@ export async function GET(req: Request) {
 
   if (!slug) return fallback();
 
-  // ✅ Supabase REST (أفضل من createClient داخل edge image)
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
   const url =
     `${SUPABASE_URL}/rest/v1/tournaments` +
-    `?select=title,description,prize_pool,sponsor_name,sponsor_logo_url,sponsor_logo_key,entry,type,status` +
+    `?select=title,description,prize_pool,sponsor_name,sponsor_logo_url,sponsor_logo_key,entry,type,status,created_at` +
     `&slug=eq.${encodeURIComponent(slug)}` +
+    `&order=created_at.desc` +
     `&limit=1`;
 
   let data: any = null;
@@ -72,14 +72,12 @@ export async function GET(req: Request) {
         Authorization: `Bearer ${ANON}`,
         Accept: "application/json",
       },
-      // مهم للبوتات
       cache: "no-store",
     });
 
     const arr = await r.json();
     data = Array.isArray(arr) ? arr[0] : null;
   } catch {
-    // لو فشل fetch لا نرجّع أبيض
     return fallback();
   }
 
@@ -96,14 +94,9 @@ export async function GET(req: Request) {
 
   const sponsorKey = String(data?.sponsor_logo_key || "").toLowerCase();
 
-  const rawLogo =
-    data?.sponsor_logo_url &&
-    (String(data.sponsor_logo_url).startsWith("http") || String(data.sponsor_logo_url).startsWith("/"))
-      ? String(data.sponsor_logo_url)
-      : logoPathFromKey(sponsorKey);
-
-  // ✅ لازم URL مطلق
-  const logoUrl = rawLogo.startsWith("http") ? rawLogo : `${origin}${rawLogo}`;
+  // ملاحظة: ما رح نعرض صورة logo داخل OG حالياً (لتجنب فشل ImageResponse)
+  // بس بنستخدم fallback path لو احتجته لاحقاً
+  logoPathFromKey(sponsorKey);
 
   return new ImageResponse(
     (
@@ -115,7 +108,7 @@ export async function GET(req: Request) {
           background: "linear-gradient(135deg, #070A12 0%, #0B1220 55%, #06080F 100%)",
           padding: "56px",
           color: "#ffffff",
-          fontFamily: "Inter, Arial",
+          fontFamily: "Arial",
           position: "relative",
         }}
       >
@@ -141,7 +134,9 @@ export async function GET(req: Request) {
                 }}
               />
               <div style={{ fontSize: 22, fontWeight: 800 }}>Forex Leagues</div>
-              <div style={{ fontSize: 18, color: "rgba(255,255,255,0.55)" }}>Verified Forex Competitions</div>
+              <div style={{ fontSize: 18, color: "rgba(255,255,255,0.55)" }}>
+                Verified Forex Competitions
+              </div>
             </div>
 
             <div style={{ marginTop: 26, fontSize: 64, fontWeight: 900, lineHeight: 1.05 }}>
@@ -170,7 +165,9 @@ export async function GET(req: Request) {
                     background: "rgba(0,0,0,0.25)",
                   }}
                 >
-                  <div style={{ fontSize: 14, color: "rgba(255,255,255,0.55)", fontWeight: 700 }}>{c.label}</div>
+                  <div style={{ fontSize: 14, color: "rgba(255,255,255,0.55)", fontWeight: 700 }}>
+                    {c.label}
+                  </div>
                   <div style={{ fontSize: 18, fontWeight: 900 }}>{c.value}</div>
                 </div>
               ))}
@@ -185,8 +182,12 @@ export async function GET(req: Request) {
                   border: "1px solid rgba(234,179,8,0.25)",
                 }}
               >
-                <div style={{ fontSize: 14, color: "rgba(255,255,255,0.65)", fontWeight: 700 }}>Prize Pool</div>
-                <div style={{ fontSize: 34, fontWeight: 950, color: "#EAB308" }}>${money(prizePool)}</div>
+                <div style={{ fontSize: 14, color: "rgba(255,255,255,0.65)", fontWeight: 700 }}>
+                  Prize Pool
+                </div>
+                <div style={{ fontSize: 34, fontWeight: 950, color: "#EAB308" }}>
+                  ${money(prizePool)}
+                </div>
               </div>
 
               <div style={{ fontSize: 18, color: "rgba(255,255,255,0.60)" }}>
@@ -204,7 +205,9 @@ export async function GET(req: Request) {
                 padding: 18,
               }}
             >
-              <div style={{ fontSize: 16, color: "rgba(255,255,255,0.60)", fontWeight: 800 }}>Sponsor</div>
+              <div style={{ fontSize: 16, color: "rgba(255,255,255,0.60)", fontWeight: 800 }}>
+                Sponsor
+              </div>
               <div style={{ marginTop: 8, fontSize: 28, fontWeight: 950 }}>{sponsorName}</div>
 
               <div
@@ -221,7 +224,24 @@ export async function GET(req: Request) {
                   overflow: "hidden",
                 }}
               >
-                <img src={logoUrl} alt={sponsorName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <div
+                  style={{
+                    width: 260,
+                    height: 120,
+                    borderRadius: 16,
+                    background: "#111",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#999",
+                    fontSize: 22,
+                    fontWeight: 800,
+                    padding: "0 18px",
+                    textAlign: "center",
+                  }}
+                >
+                  {sponsorName}
+                </div>
               </div>
 
               <div style={{ marginTop: 14, fontSize: 16, color: "rgba(255,255,255,0.60)" }}>
