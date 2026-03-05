@@ -11,7 +11,7 @@ type DbTournament = {
   slug: string | null;
 };
 
-const OG_VERSION = 2;
+const OG_VERSION = 5;
 
 function normalizeSlug(input?: string | null) {
   const raw = (input ?? "").trim();
