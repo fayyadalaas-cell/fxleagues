@@ -1,10 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabase/client";
 
-type Broker = {
-  key: "exness" | "icmarkets" | "vantage" | "fxtm";
+type BrokerKey = "exness" | "icmarkets" | "vantage" | "fxtm";
+
+type BrokerRow = {
+  key: BrokerKey;
+  name: string;
+  logo_path: string | null;
+  demo_url: string | null;
+  real_url: string | null;
+  sort_order: number | null;
+  is_active: boolean | null;
+};
+
+type BrokerView = {
+  key: BrokerKey;
   name: string;
   logo: string;
   regulated: string;
@@ -12,62 +25,117 @@ type Broker = {
   spreadFrom: string;
   platforms: string;
   short: string;
-  demoUrl: string; // مؤقتاً
-  realUrl: string; // مؤقتاً
+  demoUrl: string;
+  realUrl: string;
 };
 
-const BROKERS: Broker[] = [
-  {
-    key: "exness",
-    name: "Exness",
-    logo: "/brokers/exness.png",
+const BROKER_DEFAULTS: Record<
+  BrokerKey,
+  Omit<BrokerView, "key" | "name" | "logo" | "demoUrl" | "realUrl">
+> = {
+  exness: {
     regulated: "FCA / CySEC (varies by region)",
     minDeposit: "$10+",
     spreadFrom: "0.0 pips",
     platforms: "MT4 / MT5",
     short: "Fast execution and flexible account types.",
-    demoUrl: "#",
-    realUrl: "#",
   },
-  {
-    key: "icmarkets",
-    name: "IC Markets",
-    logo: "/brokers/icmarkets.png",
+  icmarkets: {
     regulated: "ASIC / CySEC (varies by region)",
     minDeposit: "$200+",
     spreadFrom: "0.0 pips",
     platforms: "MT4 / MT5 / cTrader",
     short: "Raw spreads with strong liquidity.",
-    demoUrl: "#",
-    realUrl: "#",
   },
-  {
-    key: "vantage",
-    name: "Vantage",
-    logo: "/brokers/vantage.png",
+  vantage: {
     regulated: "ASIC / CIMA (varies by region)",
     minDeposit: "$50+",
     spreadFrom: "0.0–1.0 pips",
     platforms: "MT4 / MT5",
     short: "Competitive pricing and global presence.",
-    demoUrl: "#",
-    realUrl: "#",
   },
-  {
-    key: "fxtm",
-    name: "FXTM",
-    logo: "/brokers/fxtm.png",
+  fxtm: {
     regulated: "FCA / CySEC (varies by region)",
     minDeposit: "$10+",
     spreadFrom: "1.0 pips",
     platforms: "MT4 / MT5",
     short: "Established broker with flexible options.",
+  },
+};
+
+const FALLBACK_KEYS: BrokerKey[] = ["exness", "icmarkets", "vantage", "fxtm"];
+
+function fallbackBrokers(): BrokerView[] {
+  return FALLBACK_KEYS.map((key) => ({
+    key,
+    name: key.toUpperCase(),
+    logo: `/brokers/${key}.png`,
     demoUrl: "#",
     realUrl: "#",
-  },
-];
+    ...BROKER_DEFAULTS[key],
+  }));
+}
 
 export default function BrokersPage() {
+  const [rows, setRows] = useState<BrokerRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [rev, setRev] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function load() {
+      setLoading(true);
+
+      const { data, error } = await supabase
+        .from("homepage_brokers")
+        .select("key,name,logo_path,demo_url,real_url,sort_order,is_active")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+
+      if (!mounted) return;
+
+      if (error) {
+     console.error("Failed to load homepage_brokers:", error.message);
+    setRows([]);
+    } else {
+  setRows((data ?? []) as BrokerRow[]);
+  setRev(Date.now());
+}
+
+      setLoading(false);
+    }
+
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const brokers: BrokerView[] = useMemo(() => {
+  if (!rows.length) return fallbackBrokers();
+
+  return rows.map((r) => {
+    const key = r.key;
+
+    const baseLogo = r.logo_path || `/brokers/${key}.png`;
+
+// نضيف v=rev فقط للروابط المحلية اللي تبدأ بـ /
+const logo =
+  rev && baseLogo.startsWith("/")
+    ? `${baseLogo}${baseLogo.includes("?") ? "&" : "?"}v=${rev}`
+    : baseLogo;
+
+return {
+  key,
+  name: r.name,
+  logo,
+  demoUrl: r.demo_url || "#",
+  realUrl: r.real_url || "#",
+  ...BROKER_DEFAULTS[key],
+};
+  });
+}, [rows, rev]);
   return (
     <main className="min-h-screen bg-black text-white">
       <section className="max-w-7xl mx-auto px-6 py-16">
@@ -81,6 +149,12 @@ export default function BrokersPage() {
             Compare regulation, spreads, platforms and key features.
           </p>
         </div>
+
+        {loading && (
+          <div className="mt-10 text-center text-zinc-500 text-sm">
+            Loading brokers…
+          </div>
+        )}
 
         {/* ✅ DESKTOP TABLE ONLY (md+) */}
         <div className="mt-12 hidden md:block overflow-hidden rounded-2xl border border-zinc-800">
@@ -105,21 +179,19 @@ export default function BrokersPage() {
               </thead>
 
               <tbody className="divide-y divide-zinc-800">
-                {BROKERS.map((b) => (
+                {brokers.map((b) => (
                   <tr key={b.key} className="[&>td]:px-4 [&>td]:py-4">
                     <td className="font-semibold">
                       <div className="flex items-center gap-4">
-                        {/* ✅ Logo fills box (less gaps) */}
-                        <div className="relative h-12 w-32 rounded-2xl border border-zinc-800 bg-white/95 overflow-hidden">
-                          <Image
-                            src={b.logo}
-                            alt={b.name}
-                            fill
-                            sizes="176px"
-                            className="object-cover"
-                            priority={b.key === "exness"}
-                          />
-                        </div>
+<div className="h-12 w-32 rounded-2xl border border-zinc-800 bg-white/95 overflow-hidden">
+  {/* eslint-disable-next-line @next/next/no-img-element */}
+  <img
+    src={b.logo}
+    alt={b.name}
+    className="h-full w-full object-cover"
+    loading={b.key === "exness" ? "eager" : "lazy"}
+  />
+</div>
 
                         <span className="text-base font-extrabold">{b.name}</span>
                       </div>
@@ -159,24 +231,22 @@ export default function BrokersPage() {
 
         {/* ✅ MOBILE CARDS ONLY (<md) */}
         <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-6 md:hidden">
-          {BROKERS.map((b) => (
+          {brokers.map((b) => (
             <div
               key={b.key}
               className="rounded-2xl border border-zinc-800 bg-gradient-to-b from-zinc-950/60 to-black p-6 hover:border-yellow-500/40 transition"
             >
-              {/* ✅ Mobile logo (natural size, perfect fit) */}
-<div className="flex justify-center">
-  <div className="rounded-xl border border-zinc-800 bg-black/40 px-6 py-3 inline-flex items-center justify-center">
-    <Image
-      src={b.logo}
-      alt={b.name}
-      width={160}
-      height={60}
-      className="object-contain"
-      priority={b.key === "exness"}
-    />
-  </div>
-</div>
+              <div className="flex justify-center">
+                <div className="rounded-xl border border-zinc-800 bg-black/40 px-6 py-3 inline-flex items-center justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+<img
+  src={b.logo}
+  alt={b.name}
+  className="max-h-[54px] w-[160px] object-contain"
+  loading={b.key === "exness" ? "eager" : "lazy"}
+/>
+                </div>
+              </div>
 
               <div className="mt-5">
                 <div className="flex items-start justify-between gap-4">
@@ -228,7 +298,7 @@ export default function BrokersPage() {
           ))}
         </div>
 
-        {/* ✅ NEW: Open account steps (SEO + conversion) */}
+        {/* ✅ باقي قسم SEO تبعك خليته مثل ما هو */}
         <div className="mt-14 max-w-7xl mx-auto text-zinc-300 leading-relaxed">
           <h2 className="text-2xl md:text-3xl font-extrabold text-white">
             How to open a real forex trading account
@@ -330,7 +400,6 @@ export default function BrokersPage() {
           </div>
         </div>
 
-        {/* Existing SEO text (kept, but now supports the new section) */}
         <div className="mt-12 max-w-7xl mx-auto text-zinc-300 leading-relaxed">
           <h2 className="text-2xl font-extrabold text-white">
             How to choose a forex broker
