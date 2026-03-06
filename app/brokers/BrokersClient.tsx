@@ -113,6 +113,7 @@ export default function BrokersPage() {
   }, []);
 
   const brokers: BrokerView[] = useMemo(() => {
+  if (loading) return [];
   if (!rows.length) return fallbackBrokers();
 
   return rows.map((r) => {
