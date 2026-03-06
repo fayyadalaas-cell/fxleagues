@@ -54,23 +54,11 @@ export default function SponsorsStrip() {
   return (
     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
       <div>
-        <div className="text-xl font-bold text-white tracking-tight">
+        <div className="text-xl font-bold text-yellow-400 tracking-tight">
           Official Tournament Partners
         </div>
 
-        <div className="text-sm text-zinc-400 mt-2 max-w-md leading-relaxed">
-          Trade with official partners and join competitions.
-        </div>
-
-        <div className="mt-4">
-          <Link
-            href="/sponsors"
-            className="inline-flex items-center gap-2 rounded-full border border-yellow-500/40 bg-yellow-500/10 px-4 py-2 text-sm font-semibold text-yellow-300 hover:bg-yellow-500/15 hover:border-yellow-500/60 transition"
-          >
-            Become a Partner
-            <span className="text-yellow-300/70">→</span>
-          </Link>
-        </div>
+       
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-center">
