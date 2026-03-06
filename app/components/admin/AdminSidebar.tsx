@@ -1,4 +1,3 @@
-// app/components/admin/AdminSidebar.tsx
 "use client";
 
 import Link from "next/link";
@@ -54,6 +53,11 @@ export default function AdminSidebar() {
           desc: "Homepage broker logos",
         },
         {
+          href: "/admin/sponsors",
+          label: "Manage Sponsors",
+          desc: "Homepage sponsor logos",
+        },
+        {
           href: "/admin/newsletter",
           label: "Newsletter",
           desc: "Subscribers list & exports",
@@ -69,7 +73,6 @@ export default function AdminSidebar() {
 
   return (
     <aside className="w-72 lg:w-80 min-h-screen border-r border-white/10 bg-zinc-950/80 backdrop-blur px-4 py-5">
-      {/* Brand */}
       <div className="flex items-center gap-3 px-1">
         <div className="h-10 w-10 rounded-2xl border border-white/10 bg-black/40 flex items-center justify-center">
           <span className="text-yellow-400 font-extrabold">FX</span>
@@ -81,10 +84,8 @@ export default function AdminSidebar() {
         </div>
       </div>
 
-      {/* Divider */}
       <div className="mt-5 h-px bg-white/10" />
 
-      {/* Nav */}
       <nav className="mt-5 space-y-6">
         {sections.map((sec) => (
           <div key={sec.title}>
@@ -107,7 +108,6 @@ export default function AdminSidebar() {
                         : "border-transparent hover:border-white/10 hover:bg-white/5")
                     }
                   >
-                    {/* Active indicator */}
                     <span
                       className={
                         "absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r " +
@@ -132,7 +132,6 @@ export default function AdminSidebar() {
         ))}
       </nav>
 
-      {/* Bottom */}
       <div className="mt-8 pt-5 border-t border-white/10">
         <Link
           href="/"
