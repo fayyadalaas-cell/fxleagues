@@ -6,6 +6,7 @@ import Next7DaysFromDb from "@/app/components/home/Next7DaysFromDb";
 import { supabase } from "@/lib/supabase/client";
 import { BROKERS_CONFIG } from "@/lib/brokers-config";
 import { BROKERS } from "@/lib/brokers";
+import SponsorsStrip from "@/app/components/home/SponsorsStrip";
 
 
 
@@ -472,7 +473,7 @@ ${money(nextTournament?.prize_pool ?? 0)}
   </div>
 </div>
 
-     {/* TRUSTED BROKERS STRIP (FIX: no drop to 2nd line on desktop) */}
+     {/* TRUSTED BROKERS STRIP */}
 <section className="max-w-7xl mx-auto px-6 pt-1 pb-6">
   <div
     className="relative overflow-hidden rounded-3xl border border-zinc-800 
@@ -481,59 +482,13 @@ ${money(nextTournament?.prize_pool ?? 0)}
                shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_40px_120px_rgba(0,0,0,0.9)]"
   >
 
-    {/* subtle glow */}
     <div className="pointer-events-none absolute -top-40 -left-40 h-80 w-80 rounded-full bg-yellow-500/5 blur-3xl" />
     <div className="pointer-events-none absolute -bottom-40 -right-40 h-80 w-80 rounded-full bg-yellow-500/5 blur-3xl" />
 
-    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-      
-      <div>
-        <div className="text-xl font-bold text-white tracking-tight">
-          Official Tournament Partners
-        </div>
+    <SponsorsStrip />
 
-        <div className="text-sm text-zinc-400 mt-2 max-w-md leading-relaxed">
-          Trade with official partners and join competitions.
-        </div>
-
-        <div className="mt-4">
-          <Link
-            href="/sponsors"
-            className="inline-flex items-center gap-2 rounded-full border border-yellow-500/40 bg-yellow-500/10 px-4 py-2 text-sm font-semibold text-yellow-300
-                       hover:bg-yellow-500/15 hover:border-yellow-500/60 transition"
-          >
-            Become a Partner
-            <span className="text-yellow-300/70">→</span>
-          </Link>
-        </div>
-      </div>
-
-            {/* Trusted Brokers */}
-<div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-center">
-  {BROKERS_CONFIG.map((b) => (
-  <Link
-    key={b.key}
-    href={b.href}
-    target={b.newTab ? "_blank" : "_self"}
-    className="h-16 md:h-24 rounded-xl border border-yellow-500/40 bg-gradient-to-b from-zinc-900/60 to-black 
-               flex items-center justify-center px-3 md:px-8
-               transition-all duration-300 
-               hover:border-yellow-400/70 
-               hover:shadow-[0_0_25px_rgba(234,179,8,0.25)]"
-  >
-    <Image
-      src={b.logo}
-      alt={b.name}
-      width={160}
-      height={52}
-      className="w-full h-full object-contain"
-    />
-  </Link>
-))}
-</div>
-          </div>
-        </div>
-      </section>
+  </div>
+</section>
 
 
       <section className="max-w-7xl mx-auto px-6 pb-16">
