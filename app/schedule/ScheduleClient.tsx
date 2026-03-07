@@ -9,6 +9,8 @@ import { supabase } from "@/lib/supabase/client";
 type Status = "LIVE" | "UPCOMING" | "ENDED";
 type Filter = "ALL" | "LIVE" | "UPCOMING" | "ENDED";
 
+const REGISTRATION_OPEN = false;
+
 type TournamentRow = {
   id: string;
   slug: string;
@@ -348,29 +350,30 @@ export default function SchedulePage() {
                     </Link>
 
                     {isEnded ? (
-                      <button
-                        disabled
-                        className="rounded-lg bg-zinc-800 px-3 py-2 text-center text-sm font-semibold text-zinc-400 cursor-not-allowed"
-                        title="Tournament ended"
-                      >
-                        Ended
-                      </button>
-                    ) : isJoined ? (
-                      <button
-                        disabled
-                        className="rounded-lg bg-zinc-700 px-3 py-2 text-center text-sm font-semibold text-zinc-300 cursor-not-allowed"
-                        title="Already joined"
-                      >
-                        Joined
-                      </button>
-                    ) : (
-                      <Link
-                        href={`/tournaments/${t.slug}/join`}
-                        className="rounded-lg bg-yellow-500 px-3 py-2 text-center text-sm font-semibold text-black hover:bg-yellow-400"
-                      >
-                        Join
-                      </Link>
-                    )}
+  <button
+    disabled
+    className="rounded-lg bg-zinc-800 px-3 py-2 text-center text-sm font-semibold text-zinc-400 cursor-not-allowed"
+    title="Tournament ended"
+  >
+    Ended
+  </button>
+) : isJoined ? (
+  <button
+    disabled
+    className="rounded-lg bg-zinc-700 px-3 py-2 text-center text-sm font-semibold text-zinc-300 cursor-not-allowed"
+    title="Already joined"
+  >
+    Joined
+  </button>
+) : (
+  <button
+    disabled
+    className="rounded-lg bg-zinc-700 px-3 py-2 text-center text-sm font-semibold text-zinc-300 cursor-not-allowed"
+    title="Registrations closed for now"
+  >
+    Soon
+  </button>
+)}
                   </div>
 
                   {!userId && (
@@ -466,29 +469,30 @@ export default function SchedulePage() {
                       </Link>
 
                       {isEnded ? (
-                        <button
-                          disabled
-                          className="rounded-lg bg-zinc-800 px-3 py-2 text-xs font-semibold text-zinc-400 cursor-not-allowed"
-                          title="Tournament ended"
-                        >
-                          Ended
-                        </button>
-                      ) : isJoined ? (
-                        <button
-                          disabled
-                          className="rounded-lg bg-zinc-700 px-3 py-2 text-xs font-semibold text-zinc-300 cursor-not-allowed"
-                          title="Already joined"
-                        >
-                          Joined
-                        </button>
-                      ) : (
-                        <Link
-                          href={`/tournaments/${t.slug}/join`}
-                          className="rounded-lg bg-yellow-500 px-3 py-2 text-xs font-semibold text-black hover:bg-yellow-400"
-                        >
-                          Join
-                        </Link>
-                      )}
+  <button
+    disabled
+    className="rounded-lg bg-zinc-800 px-3 py-2 text-xs font-semibold text-zinc-400 cursor-not-allowed"
+    title="Tournament ended"
+  >
+    Ended
+  </button>
+) : isJoined ? (
+  <button
+    disabled
+    className="rounded-lg bg-zinc-700 px-3 py-2 text-xs font-semibold text-zinc-300 cursor-not-allowed"
+    title="Already joined"
+  >
+    Joined
+  </button>
+) : (
+  <button
+    disabled
+    className="rounded-lg bg-zinc-700 px-3 py-2 text-xs font-semibold text-zinc-300 cursor-not-allowed"
+    title="Registrations closed for now"
+  >
+    Soon
+  </button>
+)}
                     </div>
                   </div>
                 );

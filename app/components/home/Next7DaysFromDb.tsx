@@ -19,6 +19,8 @@ type Row = {
   prize: number;
 };
 
+const REGISTRATION_OPEN = false;
+
 type Props = {
   title?: string;
   limit?: number;
@@ -239,20 +241,20 @@ export default function Next7DaysFromDb({ title = "Next 7 Days", limit = 7 }: Pr
                     </Link>
 
                     {isJoined ? (
-                      <button
-                        disabled
-                        className="rounded-lg bg-zinc-700 px-4 py-2 text-xs font-semibold text-zinc-300 cursor-not-allowed"
-                      >
-                        Joined
-                      </button>
-                    ) : (
-                      <Link
-                        href={`/tournaments/${t.slug}/join`}
-                        className="rounded-lg bg-yellow-500 px-4 py-2 text-xs font-semibold text-black hover:bg-yellow-400"
-                      >
-                        Join
-                      </Link>
-                    )}
+  <button
+    disabled
+    className="rounded-lg bg-zinc-700 px-4 py-2 text-xs font-semibold text-zinc-300 cursor-not-allowed"
+  >
+    Joined
+  </button>
+) : (
+  <button
+    disabled
+    className="rounded-lg bg-zinc-700 px-4 py-2 text-xs font-semibold text-zinc-300 cursor-not-allowed"
+  >
+    Soon
+  </button>
+)}
                   </div>
                 </div>
               );

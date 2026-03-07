@@ -16,6 +16,7 @@ type Row = {
 };
 
 type Tab = "overview" | "leaderboard";
+const REGISTRATION_OPEN = false;
 
 type DbTournament = {
   id: string; // uuid
@@ -344,21 +345,23 @@ export default function TournamentDetailsPage() {
   };
 
   async function handleOpenJoin() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+  if (!REGISTRATION_OPEN) return;
 
-    if (!session) {
-      router.push("/signin");
-      return;
-    }
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
-    setAgree(false);
-    setOpenJoin(true);
+  if (!session) {
+    router.push("/signin");
+    return;
   }
 
+  setAgree(false);
+  setOpenJoin(true);
+}
+
   async function handleJoinNow() {
-    if (!agree || !t) return;
+  if (!REGISTRATION_OPEN || !agree || !t) return;
 
     const {
       data: { session },
@@ -992,40 +995,34 @@ const sponsorLogoSrc =
                 </button>
 
                 {alreadyJoined ? (
-                  <div
-                    className={
-                      "h-10 w-full inline-flex items-center justify-center rounded-xl px-4 text-sm font-semibold border " +
-                      (registrationStatus === "approved"
-                        ? "border-emerald-700/50 bg-emerald-950/30 text-emerald-200"
-                        : registrationStatus === "rejected"
-                        ? "border-red-700/50 bg-red-950/30 text-red-200"
-                        : "border-yellow-700/50 bg-yellow-950/20 text-yellow-200")
-                    }
-                  >
-                    Status:&nbsp;<span className="font-bold">{registrationStatus || "joined_pending"}</span>
-                  </div>
-                ) : (
-                  <div className="h-10 w-full" />
-                )}
+  <div
+    className={
+      "h-10 w-full inline-flex items-center justify-center rounded-xl px-4 text-sm font-semibold border " +
+      (registrationStatus === "approved"
+        ? "border-emerald-700/50 bg-emerald-950/30 text-emerald-200"
+        : registrationStatus === "rejected"
+        ? "border-red-700/50 bg-red-950/30 text-red-200"
+        : "border-yellow-700/50 bg-yellow-950/20 text-yellow-200")
+    }
+  >
+    Status:&nbsp;<span className="font-bold">{registrationStatus || "joined_pending"}</span>
+  </div>
+) : (
+  <div className="h-10 w-full" />
+)}
 
-                {alreadyJoined ? (
-                  <div className="h-10 w-full inline-flex items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/40 px-4 text-sm font-semibold text-zinc-200">
-                    Joined
-                  </div>
-                ) : (
-                  <button
-                    disabled={status === "ENDED"}
-                    onClick={handleOpenJoin}
-                    className={
-                      "h-10 w-full rounded-xl px-5 text-sm font-semibold " +
-                      (status === "ENDED"
-                        ? "cursor-not-allowed bg-zinc-700 text-zinc-300"
-                        : "bg-yellow-500 text-black hover:brightness-95")
-                    }
-                  >
-                    {status === "ENDED" ? "Ended" : "Join Tournament"}
-                  </button>
-                )}
+{alreadyJoined ? (
+  <div className="h-10 w-full inline-flex items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/40 px-4 text-sm font-semibold text-zinc-200">
+    Joined
+  </div>
+) : (
+  <button
+    disabled={true}
+    className="h-10 w-full rounded-xl px-5 text-sm font-semibold cursor-not-allowed bg-zinc-700 text-zinc-300"
+  >
+    Registrations Opening Soon
+  </button>
+)}
 
                 {alreadyJoined && !credentialsSubmitted && status !== "ENDED" ? (
                   <button
