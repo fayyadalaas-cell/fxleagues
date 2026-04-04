@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import AuthButtons from "../AuthButtons";
 import type { MouseEvent } from "react";
@@ -14,17 +15,15 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 border-b border-zinc-900/70 bg-black/80 backdrop-blur">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex h-16 items-center justify-between gap-3">
-          <Link href="/" className="flex items-center gap-3 min-w-0">
-            <div className="h-9 w-9 rounded-xl border border-zinc-800 bg-zinc-900/40 flex items-center justify-center shrink-0">
-              <div className="h-2 w-2 rounded-full bg-yellow-400" />
-            </div>
-
-            <div className="leading-tight min-w-0">
-              <div className="font-bold text-white truncate">Forex Leagues</div>
-              <div className="text-xs text-zinc-400 truncate">
-                Verified Forex Competitions
-              </div>
-            </div>
+          <Link href="/" className="flex items-center min-w-0 shrink-0">
+            <Image
+              src="/brand/fxleagues-logo.png"
+              alt="Forex Leagues"
+              width={220}
+              height={44}
+              priority
+              className="h-auto w-[170px] sm:w-[190px] md:w-[220px]"
+            />
           </Link>
 
           <nav className="hidden md:flex items-center gap-6 text-sm text-zinc-300">
