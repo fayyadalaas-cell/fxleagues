@@ -328,7 +328,7 @@ const liveId: string | undefined = undefined;
   <main className="min-h-screen bg-black text-white">
 
     {/* HERO (full width feel + cleaner spacing) */}
-<section className="max-w-7xl mx-auto px-6 pt-8 pb-16">
+<section className="max-w-7xl mx-auto px-6 pt-8 pb-6">
             <div className="w-full rounded-[28px] border border-zinc-800/90 ring-1 ring-white/5 bg-gradient-to-b from-zinc-950/80 via-zinc-950/60 to-black p-6 sm:p-8 md:p-12 shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_30px_90px_rgba(0,0,0,0.85)]">          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
             <div className="lg:col-span-8">
 <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-5xl font-extrabold leading-tight tracking-tight">              <span className="text-yellow-400">Global Forex Trading Contests & Competitions</span>
