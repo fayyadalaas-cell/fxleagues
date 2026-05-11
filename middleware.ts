@@ -1,7 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+const COMING_SOON_MODE = true;
+
 export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  // ✅ Coming Soon Mode: كل الصفحات تتحول لصفحة قيد الإنشاء
+  if (COMING_SOON_MODE && pathname !== "/coming-soon") {
+    const url = req.nextUrl.clone();
+    url.pathname = "/coming-soon";
+    return NextResponse.rewrite(url);
+  }
+
   let res = NextResponse.next({
     request: { headers: req.headers },
   });
@@ -23,7 +34,6 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  // يثبت/يحدث session cookies على كل request (للصفحات العادية فقط)
   await supabase.auth.getUser();
 
   return res;
@@ -31,7 +41,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // ✅ استثناء API routes + OG images + Next static
     "/((?!api|_next/static|_next/image|favicon.ico|.*opengraph-image|.*twitter-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
